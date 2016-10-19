@@ -245,3 +245,7 @@ rateDataをcsv形式で保存する。
 ```
 write.csv(rateData, "rateData.csv", quote=FALSE, row.names=FALSE)
 ```
+
+# おわりに
+
+これで，解析用のデータセットを作ることができました。あとは，Rで解析してもよし，SPSSやHADで解析しても良いです（個人的にはRを薦めますが・・・）。統計解析する前に，必ずデータの可視化（プロット）をしましょう！
