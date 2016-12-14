@@ -1,12 +1,12 @@
 ---
 title: "Rで実験データのハンドリング！"
-author: "Yoshihiko Kunisato"
+author: "専修大学人間科学部心理学科　国里愛彦"
 date: "`r format(Sys.time(), '%Y/%m/%d')`"
 output:
   html_document:
     md_extensions: -ascii_identifiers
     number_sections: yes
-    theme: paper
+    theme: default
     toc: yes
     toc_float: yes
 ---
