@@ -1,31 +1,55 @@
 ---
-title: "反応時間に対する線形弾道モデルによる解析"
-author: "Yoshihiko Kunisato"
-date: "2016/12/22"
+title: "RStanによる反応時間の解析：Linear Ballistic Accumulator modelを用いて"
+author: "専修大学人間科学部　国里愛彦"
+date: "2016年12月22日"
 output:
   html_document:
     md_extensions: -ascii_identifiers
     number_sections: yes
-    theme: paper
+    theme: default
     toc: yes
     toc_float: yes
 ---
-# 使用パッケージ
-ワークスペースのクリアをしてから，以下のパッケージを読み込みます。
-```{r,message=FALSE}
-rm(list=ls(all=TRUE))
-#グラフィカルモデル用
-require(DiagrammeR)
-require(rstan)
-```
 
-# LBAのためのStanのユーザー定義関数の説明
 
- Annisらの[Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)を改変して使った。　LBAの前提として，反応時間は，エビデンスの蓄積が閾値bまで達した時になされる。その際の，エビデンスの蓄積率（傾きに近いもの）は，ドリフトレートdと呼ぶ。各試行のドリフトレートdは，平均v，標準偏差sの正規分布に従っている。各試行の開始点は，0からAの間から一様分布できまる。Non decisionタイムτは，全試行で一定と考える。ある試行の反応時間RTjは，(b-ai/di)の最小値とτを足したものになる（jは試行数，iは選択肢になる。aはAの実現値と思われる）。ちなみに，ここでのkと元のLBAでのkは違うのであまり気にしない。aとdは，推定するパラメータではなく，vi, b, A, s, τ を推定する（sは，今回は１で固定している）。今回，bを直接計算せず，b=k+Aと考えて，k(相対閾値relative threshold)を推定している。
+本資料は，[Stan Advent Calendar 2016](http://qiita.com/advent-calendar/2016/stan)に向けて作成した資料です。心理学や神経科学などで用いられる反応時間について，Linear Ballistic Accumulator modelを用いて解析する方法を解説しています。本資料は， Annis et al. (2016). [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)の紹介を通して，以下の２点を目的としています。
 
-![Annisらの論文あったLBAのモデル図](LBAmodel.png) 
+1. Linear Ballistic Accumulator modelを用いた反応時間の解析を理解する
+1. Stanでユーザー定義関数を用いる方法を理解する
 
-## LBAのPDF関数
+
+# Linear Ballistic Accumulator modelについて
+## 反応時間の解析とは？
+
+心理学や神経科学などにおいて，人や動物の行動を対象とした場合、何か刺激を提示してから反応するまでにかかる時間を解析することって結構多いかと思います。こういうのを反応時間と言います。以下の図で説明すると，二重丸が出てきたらボタンを押すという実験状況があったとして，二重丸の提示からボタン押しまにかかる反応時間を解析するというものです。二重丸が出たらボタンを押すというのはあまり意味のある実験には思えないかもしれません。実際は，提示する刺激の特性を変化させたり，反応のルールを操作することで，反応時間に違いが生じるかを調べることが多いです。よく知らないですけど，ウェブ上で複数の広告を出してからどれかをクリックするまでの時間を調べたいときも，同様かなと思います。より詳しく知りたい方は，脳科学辞典の[反応時間](https://bsd.neuroinf.jp/wiki/%E5%8F%8D%E5%BF%9C%E6%99%82%E9%96%93)を参照ください。
+
+![](fig1.png) 
+
+## 従来の反応時間の解析と逐次サンプリングモデル
+
+従来の反応時間の解析では，群間or条件間の平均値の差をt検定や分散分析で検定するというのが多かったように思います。そして，明らかになった平均値の差が，実験的な刺激の操作や群の違いを反映していると考えます。しかし，反応時間というものをよく考えると，その中にはいろいろな成分が入っています。下の図を見てください。私達が刺激が出てから反応するまでに，(1)刺激の読み込み，(2)判断，(3)ボタンを押す動作の３つがあるように思えます。多くの場合，研究者が関心のあるのは，「判断」になります。そのため，「刺激の読み込み」と「ボタンを押す動作」のような無判断時間（Non Decision Time）と判断にかかる時間（Decision Time）に分けて考えるほうが自然かと思います。このような反応時間の生成についてのモデルとして，逐次サンプリングモデルがあり，その１つにLinear Ballistic Accumulator model（無理やり訳すなら，線形弾道蓄積モデル）があります。逐次サンプリングモデルの代表的なモデルとしてdrift-diffusion modelもありますが，今回はLinear Ballistic Accumulator modelを取り上げます（Linear Ballistic Accumulator modelは，Drift-Diffusion modelをよりシンプルにしたものです）。Linear Ballistic Accumulator modelは，Brown & Heathcote(2008)による[The simplest complete model of choice response time: Linear ballistic accumulation](https://www.ncbi.nlm.nih.gov/pubmed/18243170)で提案されたモデルになります（数理モデルの導出は本論文のAppendixを参照ください）。
+
+![](fig2.png) 
+
+## Linear Ballistic Accumulator modelにおけるDecision Timeの中身
+
+さて，関心のあるDecision Timeの中身をみていきます（以降，図の中で，Non Decision Timeは左にまとめています）。Linear Ballistic Accumulator modelでは，私たちは判断を下すまでに徐々にその選択をする上でのエビデンスを蓄積し，それが閾値まで溜まったら，判断を下すと考えます（下図の上の部分）。Drift-Diffusion modelの場合は，この蓄積過程にランダムウォークが入りますが，Linear Ballistic Accumulator modelは，まさに，戦型な弾道を描いてエビデンスを蓄積していきます。
+
+下図を用いてもう少しLinear Ballistic Accumulator modelについて説明します。Linear Ballistic Accumulator modelの前提として，反応時間は，エビデンスの蓄積が閾値(b)まで達した時になされます。その際の，エビデンスの蓄積率（傾きに近いもの）は，ドリフト率(d)と呼びます。各試行のドリフト率(d)は，平均v，標準偏差sの正規分布に従います。また，各試行の開始点(a)は，0からA(開始点の上限)の間から一様分布できまります。Decision Timeは，(b-a)/dで求めることができる。Non  decision Time(τ)は，全試行で一定と考えます。ここで，aとdは，推定するパラメータではなく，v, b, A, s, τ を推定する（sは，今回は１で固定している）。今回，閾値(b)を直接計算せず，b=k+Aと考えて，相対閾値(relative threshold: k)を推定している。
+
+![](fig3.png) 
+
+## Linear Ballistic Accumulator modelにおける複数選択肢の扱い
+
+Linear Ballistic Accumulator modelでは，複数選択肢の反応時間の解析ができます（Drift-Diffusion modelの場合は，２選択肢に限定される）。まず，Linear Ballistic Accumulator modelでは，閾値までエビデンスが蓄積されたときに，反応が出力されるという前提があります。選択肢が複数ある場合，最も最初に閾値に到達した選択肢の反応が出力されます（下図の場合，選択肢１の方が，選択肢２よりも先に閾値に到達しているので選択肢１が反応として出力されます）。なお，Linear Ballistic Accumulator modelでは，Decision Timeでエビデンスを蓄積するものをaccumulatorと呼ぶ（選択肢と言っても良いが，エビデンスの蓄積過程を明示的に扱っている感じです）。
+
+![](fig4.png) 
+
+# StanでLinear Ballistic Accumulator modelを使うためのユーザー定義関数の設定
+
+ Annisらの[Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)で紹介されていた関数を改変して使った。AnnisらのStanコードは，[AnnisのHP](http://www.vanderbilt.edu/psychological_sciences/bio/jeff-annis)にて配布されています。なお，主な改変は，(1)Annisらのコードをstan 2.10以降の記法に対応させた（<-を=に変更，_logを_lpdfに変更など），(2)Annisらのコードでは，個々の試行の対数尤度が計算されてなかったので，試行ごとの対数尤度を計算できるように修正した（後述）。
+ 
+## 特定のaccumulatorの確率密度関数
 
 LBAのProbability density function（確率密度関数）を計算する関数になる。引数は，t，b，A, v_PDF, sになる。入力にたいして，PDFを返す関数になる。　PDFとは，連続確率変数が取りうるある値での相対尤度を記述する関数である。この関数は Annisらのコードをそのまま使用する（書き方はStan2.11以上に合わせた）。LBAのPDFは以下の式から計算される。
 
@@ -56,7 +80,7 @@ real lba_pdf(real t, real b, real A, real v_pdf, real s){
  }
 ```
 
-## LBAのCDF関数
+## 特定のaccumulatorの累積密度関数
 
 LBAのCumulative Density Function（累積密度関数）を計算する関数になる。引数は，t，b，A, v_cdf, sになる。入力にたいして，CDFを返す関数になる。　PDFとは，CDFとは，ある分布がある値までに累積した確率密度の関数である。この関数は Annisらのコードをそのまま使用する（書き方はStan2.11以上に合わせた）。LBAのCDFは以下の式から計算される。
 
@@ -92,7 +116,7 @@ real lba_cdf(real t, real b, real A, real v_cdf, real s){
 }
 ```
 
-## LBAのCDF関数
+## 特定のaccumulatorが最初に閾値に到達する累積密度関数
 
 上で定義した，lba_cdfとlba_pdfは，時間tにおいて，i番目のaccumulatorが閾値に到達した確率密度や累積密度を出している。それを用いて，複数のaccumulatorがある状況において，どのaccumulatorが最初に閾値につくのかに興味がある（つまり，i番目のaccumulatorにおける反応時間のdefective分布に関心がある）。defective確率密度関数は，lab_cdとlba_pdfを使って以下のような式で計算される。以下の場合，i番目のaccumulatorが一番最初に閾値に到達する確率密度関数は，accumulator iの確率密度関数と，(1-それ以外のaccumulatorの累積密度関数)の総積をかけたものになる。つまり，選択肢iを時間tに選ぶ確率＊他の選択肢の累積確率の残りの総積をしている。これは，選択肢iで反応が起こる確率だけでなく，その他の選択肢で反応が起こらない確率も考慮している。
 
@@ -264,9 +288,105 @@ vector lba_rng(real k, real A, vector v, real s, real psi){
     return pred;	
 }
 ```
-##　本解析で使用するユーザー定義関数
 
-```{stan,eval=FALSE,output.var="hoge"}
+# RStanによるLinear Ballistic Accumulator modelを用いた解析
+
+## 使用パッケージ
+ワークスペースのクリアをして，以下のパッケージを読み込みます。
+```{r, message=FALSE, warning=FALSE}
+rm(list=ls(all=TRUE))
+#グラフィカルモデル用
+library(DiagrammeR)
+#グラフ作成用
+library(ggplot2)
+library(plotly)
+library(bayesplot)
+#Stan用
+library(rstan)
+library(loo)
+#LBA用データの生成
+library(rtdists)
+```
+
+## グラフィカルモデル
+```{r, echo=FALSE}
+grViz("
+  digraph dot {
+    graph [compound = true, nodesep = .5, ranksep = .25,
+           color = black, label='Linear Ballistic Accumulator Model for single participant',
+          ]
+
+      node [shape = circle,style = filled,fillcolor = white,color = black,label = 'k'] k
+      node [label = 'A'] A
+      node [label = '&tau;'] t
+      node [label = 'v[1]'] v1
+      node [label = 'v[2]'] v2
+      node [label = 'S'] s
+      node [label = 'LBA@_{t}'] lba
+      node [fillcolor = grey,label = 'RT@_{t}'] rt
+      
+      subgraph cluster3 {
+          labelloc=b
+          label = 'Trials t = 1...T'
+            edge [color = black]
+              lba -> rt
+      }
+      edge [color = black]
+        A -> lba
+        v1 -> lba
+        v2 -> lba
+        k -> lba
+        t -> lba
+        s -> lba
+    }
+}
+  ",
+engine = "dot")
+```
+$$ 
+k \sim Normal(.5,1)T[0,]\\
+A \sim Normal(.5,1)T[0,]\\
+\tau \sim Normal(.5,.5)T[0,]\\
+v[1],v[2] \sim Normal(2,1)T[0,]\\
+S = 1 \hspace{30pt}※Sは定数\\
+RT[t] \sim LBA(k,A,\tau,v1,s) \hspace{30pt}※選択肢１の時\\
+RT[t] \sim LBA(k,A,\tau,v2,s) \hspace{30pt}※選択肢2の時
+$$
+
+
+## データの作成
+
+```{r}
+#データセットの作成（t0 = non decision time）
+set.seed(123)
+data <- rLBA(500, A=0.5, b=1, t0 = 0.5, mean_v=c(2, 1.5), sd_v=c(1,1))
+trialLength = length(data$rt)
+stanData <- list(rt=data$rt,res=data$response,LENGTH=trialLength,NUM_CHOICES=2)
+```
+
+
+##　データの確認
+```{r}
+table(data$response)
+
+# 選択肢1の反応時間
+data1 <- subset(data,data$response==1)
+p1 <- ggplot(data1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+
+# 選択肢2の反応時間
+data2 <- subset(data,data$response==2)
+p2 <- ggplot(data2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+p <- subplot(p1, p2)
+ggplotly(p)
+```
+
+## Stanコード
+
+
+※なお，以降は，kazutan氏の[Stan Advent 2016の記事](http://qiita.com/kazutan/items/6cc162bc3c4b1b9062f2)を参考に，R MarkdownにStanコード直書きしてコンパイルする方法をとっています（私のRの利用の仕方からすると，これ便利です）。
+
+
+```{stan output.var="lbaModel"}
 functions{
      
      real lba_pdf(real t, real b, real A, real v, real s){
@@ -283,10 +403,10 @@ functions{
           b_A_tv_ts = (b - A - t*v)/(t*s);
           b_tv_ts = (b - t*v)/(t*s);
           term_1 = v*Phi(b_A_tv_ts);
-          term_2 = s*exp(normal_lpdf(b_A_tv_ts|0,1));
+          term_2 = s*exp(normal_lpdf(b_A_tv_ts|0,1)); 
           term_3 = v*Phi(b_tv_ts);
           term_4 = s*exp(normal_lpdf(b_tv_ts|0,1)); 
-          pdf = (1 / A)*(-term_1 + term_2 + term_3 - term_4);
+          pdf = (1/A)*(-term_1 + term_2 + term_3 - term_4);
           
           return pdf;
      }
@@ -316,44 +436,44 @@ functions{
           
      }
      
-     real lba_lpdf(real rt, real res, real k, real A, vector v, real s, real tau){
-          
-          real t;
-          real b;
-          real cdf;
-          real pdf;		
-          real prob;
-          real out;
-          real prob_neg;
-
-          b = A + k;
-          t = rt - tau;
-          
-          if(t > 0){			
-                cdf = 1;
-                for(j in 1 : num_elements(v)){
-                      if(res == j){
-                            pdf = lba_pdf(t, b, A, v[j], s);
-                      }else{	
-                            cdf = (1 - lba_cdf(t, b, A, v[j], s)) * cdf;
-                      }
-                }
-                
-                prob_neg = 1;
-                for(j in 1 : num_elements(v)){
-                      prob_neg = Phi(-v[j]/s) * prob_neg;    
-                }
-                prob = pdf*cdf;		
-                prob = prob/(1 - prob_neg);	
-                if(prob < 1e-10){
-                      prob = 1e-10;				
-                }
-          }else{
-              prob = 1e-10;			
-          }
-          out = log(prob);
-          return out;		
-     }
+    real lba_lpdf(real rt, real res, real k, real A, vector v, real s, real tau){
+        
+        real t;
+        real b;
+        real cdf;
+        real pdf;		
+        real prob;
+        real out;
+        real prob_neg;
+    
+        b = A + k;
+        t = rt - tau;
+        
+        if(t > 0){			
+              cdf = 1;
+              for(j in 1 : num_elements(v)){
+                    if(res == j){
+                          pdf = lba_pdf(t, b, A, v[j], s);
+                    }else{	
+                          cdf = (1 - lba_cdf(t, b, A, v[j], s)) * cdf;
+                    }
+              }
+              
+              prob_neg = 1;
+              for(j in 1:num_elements(v)){
+                    prob_neg = Phi(-v[j] / s) * prob_neg;    
+              }
+              prob = pdf * cdf;		
+              prob = prob / (1 - prob_neg);	
+              if(prob < 1e-10){
+                    prob = 1e-10;				
+              }
+        }else{
+            prob = 1e-10;			
+        }
+        out = log(prob);
+        return out;		
+    }
      
     vector lba_rng(real k, real A, vector v, real s, real tau){
           
@@ -376,7 +496,7 @@ functions{
           max_iter = 1000;
           iter = 0;
           while(get_pos_drift){
-               for(j in 1 : num_elements(v)){
+               for(j in 1:num_elements(v)){
                     drift[j] = normal_rng(v[j],s);
                     if(drift[j] > 0){
                          get_pos_drift = 0;
@@ -395,9 +515,9 @@ functions{
                pred[2] = -1;
           }else{
                b = A + k;
-               for(i in 1 : num_elements(v)){
+               for(i in 1:num_elements(v)){
                     //start time of each accumulator	
-                    start[i] = uniform_rng(0, A);
+                    start[i] = uniform_rng(0,A);
                     //finish times
                     ttf[i] = (b-start[i])/drift[i];
                }
@@ -419,5 +539,199 @@ functions{
           return pred;	
      }
 }
+
+data{
+     int LENGTH;
+     int NUM_CHOICES;
+     vector[LENGTH] rt;
+     vector[LENGTH] res;
+}
+
+parameters {
+     real<lower=0> k;
+     real<lower=0> A;
+     real<lower=0> tau;
+     vector<lower=0>[NUM_CHOICES] v;
+}
+
+transformed parameters {
+     real s;
+     s = 1;
+}
+
+model {
+     k ~ normal(.5,1)T[0,];
+     A ~ normal(.5,1)T[0,];
+     tau ~ normal(.5,.5)T[0,];
+     for(n in 1:NUM_CHOICES){
+          v[n] ~ normal(2,1)T[0,];
+     }
+     
+     for(m in 1:LENGTH){
+          rt[m] ~ lba(res[m],k,A,v,s,tau);
+     }
+}
+
+generated quantities {
+     vector[2] pred;
+     vector[LENGTH] log_lik;
+     
+     pred = lba_rng(k,A,v,s,tau);
+    
+     for(i in 1 : LENGTH){
+          log_lik[i] = lba_lpdf(rt[i] | res[i], k, A, v, s, tau);
+     }
+}
 ```
 
+
+## Rstanによるサンプリング
+
+```{r, message=FALSE, warning=FALSE}
+# オプション設定
+rstan_options(auto_write=TRUE)
+options(mc.cores = parallel::detectCores())
+hmcIter = 1000
+hmcChains = 4
+hmcWarmup = 300
+hmcThin = 2
+
+
+# サンプリング
+fit <- sampling(lbaModel, 
+            seed = 1234, 
+            data = stanData,
+            warmup = hmcWarmup, 
+            iter = hmcIter,
+            chains = hmcChains,
+            thin =hmcThin)
+```
+
+## 結果
+
+### 収束判定{.tabset}
+まあ，収束してそうですね。収束判定には，bayesplotを活用しています。[このページ](https://cran.rstudio.com/web/packages/bayesplot/vignettes/MCMC-diagnostics.html)が参考になりました。
+なお，定数のSは除外しています。
+
+#### トレースプロット
+```{r}
+posterior1 <- extract(fit, inc_warmup = TRUE, permuted = FALSE)
+color_scheme_set("mix-blue-pink")
+p <- mcmc_trace(posterior1,  pars = c("k", "A", "tau", "v[1]", "v[2]"), n_warmup = 125,
+                facet_args = list(nrow = 2, labeller = label_parsed))
+p + facet_text(size = 15)
+plot(p)
+```
+
+#### $\hat{R}$の確認
+
+```{r}
+color_scheme_set("brightblue")
+rhats <- rhat(fit,par = c("k", "A", "tau", "v[1]", "v[2]"))
+print(rhats)
+mcmc_rhat(rhats) + yaxis_text()
+```
+
+#### 有効サンプルサイズ
+```{r}
+neffRatios <- neff_ratio(fit,par = c("k", "A", "tau", "v[1]", "v[2]"))
+print(neffRatios)
+mcmc_neff(neffRatios) + yaxis_text()
+```
+
+#### 自己相関
+```{r}
+posterior2 <- as.matrix(fit)
+mcmc_acf(posterior2, pars = "k", lags = 10)
+mcmc_acf(posterior2, pars = "A", lags = 10)
+mcmc_acf(posterior2, pars = "tau", lags = 10)
+mcmc_acf(posterior2, pars = "v[1]", lags = 10)
+mcmc_acf(posterior2, pars = "v[2]", lags = 10)
+```
+
+### No-U-Turn Samplerの診断{.tabset}
+#### Divergent transitions
+
+```{r}
+mcmc_nuts_divergence(nuts_params(fit), log_posterior(fit))
+```
+
+#### Energy and Bayesian fraction of missing information
+
+```{r}
+mcmc_nuts_energy(nuts_params(fit),merge_chains = FALSE)
+```
+
+### 推定結果
+
+```{r}
+extractFit <- rstan::extract(fit)
+# MAP推定値計算関数
+mapEstimate <- function(z){
+  density(z)$x[which.max(density(z)$y)]
+}
+
+kMap <- mapEstimate(extractFit$k)
+AMap <- mapEstimate(extractFit$A)
+tauMap <- mapEstimate(extractFit$tau)
+v1Map <- mapEstimate(extractFit$v[,1])
+v2Map <- mapEstimate(extractFit$v[,2])
+
+print(fit,par = c("k", "A", "tau", "v[1]", "v[2]","s"))
+print("MAP推定値")
+print(paste("k=",kMap,",A=",AMap,",tau=",tauMap,",v1=",v1Map,",v2=",v2Map))
+```
+
+```{r}
+mcmc_areas(posterior2, pars = c("k", "A", "tau", "v[1]", "v[2]"), prob = 0.95)
+```
+
+### 事後予測チェック
+
+
+
+
+
+可能なら，サブプロットごとにタイトルをつけたいです。
+
+
+
+
+```{r}
+pred_rt = posterior2[,'pred[1]']
+pred_resp = posterior2[,'pred[2]']
+# 500サンプルを抽出
+postPredData <- data.frame(pred_rt[1:500],pred_resp[1:500])
+names(postPredData) <- c("predRt","predRes")
+
+table(data$response)
+table(postPredData$predRes)
+
+# データの選択肢1の反応時間
+data1 <- subset(data,data$response==1)
+p1 <- ggplot(data1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70)) 
+
+# データの選択肢2の反応時間
+data2 <- subset(data,data$response==2)
+p2 <- ggplot(data2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+
+# 事後予測データの選択肢1の反応時間
+postPredData1 <- subset(postPredData,postPredData$predRes==1)
+p3 <- ggplot(postPredData1,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+
+#　事後予測データの選択肢2の反応時間
+postPredData2 <- subset(postPredData,postPredData$predRes==2)
+p4 <- ggplot(postPredData2,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+
+p <- subplot(p1,p2,p3,p4)
+ggplotly(p)
+```
+
+
+### 情報量基準(WAICとLOOCV)の算出
+@berobero11氏の[Stan Advent 2016](http://statmodeling.hatenablog.com/entry/comparison-of-LOOCV-and-WAIC)を参考にしつつWAICとLOOCVの算出をしてみた。今回は，あまり意味ないけど，今後モデル比較する場合には，活用できる。
+
+```{r}
+loo::loo(extractFit$log_lik)$looic/(2*trialLength)
+loo::waic(extractFit$log_lik)$waic/(2*trialLength)
+```
