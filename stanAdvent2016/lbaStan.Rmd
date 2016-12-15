@@ -35,33 +35,35 @@ output:
 
 ## Linear Ballistic Accumulator modelにおけるDecision Timeの中身
 
-さて，関心のあるDecision Timeの中身をみていきます（以降，図の中で，Non Decision Timeは左にまとめています）。Linear Ballistic Accumulator modelでは，私たちは判断を下すまでに徐々にその選択をする上でのエビデンスを蓄積し，それが閾値まで溜まったら，判断を下すと考えます（下図の上の部分）。Drift-Diffusion modelの場合は，この蓄積過程にランダムウォークが入りますが，Linear Ballistic Accumulator modelは，まさに，戦型な弾道を描いてエビデンスを蓄積していきます。
+さて，関心のあるDecision Timeの中身をみていきます（下の図では，Non Decision Timeを左側にまとめています）。Linear Ballistic Accumulator modelでは，私たちは判断を下すまでに徐々にその選択をする上でのエビデンスを蓄積し，それが閾値まで溜まったら，判断を下すと考えます（下図の右上の部分）。Drift-Diffusion modelの場合は，この蓄積過程にランダムウォーク的な要素が入りますが，Linear Ballistic Accumulator modelは，まさに，線形な弾道を描いてエビデンスを蓄積していきます。
 
-下図を用いてもう少しLinear Ballistic Accumulator modelについて説明します。Linear Ballistic Accumulator modelの前提として，反応時間は，エビデンスの蓄積が閾値(b)まで達した時になされます。その際の，エビデンスの蓄積率（傾きに近いもの）は，ドリフト率(d)と呼びます。各試行のドリフト率(d)は，平均v，標準偏差sの正規分布に従います。また，各試行の開始点(a)は，0からA(開始点の上限)の間から一様分布できまります。Decision Timeは，(b-a)/dで求めることができる。Non  decision Time(τ)は，全試行で一定と考えます。ここで，aとdは，推定するパラメータではなく，v, b, A, s, τ を推定する（sは，今回は１で固定している）。今回，閾値(b)を直接計算せず，b=k+Aと考えて，相対閾値(relative threshold: k)を推定している。
+Linear Ballistic Accumulator modelの前提として，反応時間は，エビデンスの蓄積が閾値(b)まで達した時になされます。その際の，エビデンスの蓄積率は，ドリフト率(d)と呼びます。各試行のドリフト率(d)は，平均v，標準偏差sの正規分布に従います。また，各試行の開始点(a)は，0からA(開始点の上限)の一様分布に従います。そして，Decision Timeは，(b-a)/dで求めることができます。Non  decision Time(τ)は，全試行で一定と考えます。aとdは，推定するパラメータではなく，v, b, A, s, τ が推定するパラメータになります（sは，今回は１で固定している）。今回，閾値(b)は直接計算せず，b=k+Aと考えて，相対閾値(relative threshold: k)を推定しています。
 
 ![](fig3.png) 
 
 ## Linear Ballistic Accumulator modelにおける複数選択肢の扱い
 
-Linear Ballistic Accumulator modelでは，複数選択肢の反応時間の解析ができます（Drift-Diffusion modelの場合は，２選択肢に限定される）。まず，Linear Ballistic Accumulator modelでは，閾値までエビデンスが蓄積されたときに，反応が出力されるという前提があります。選択肢が複数ある場合，最も最初に閾値に到達した選択肢の反応が出力されます（下図の場合，選択肢１の方が，選択肢２よりも先に閾値に到達しているので選択肢１が反応として出力されます）。なお，Linear Ballistic Accumulator modelでは，Decision Timeでエビデンスを蓄積するものをaccumulatorと呼ぶ（選択肢と言っても良いが，エビデンスの蓄積過程を明示的に扱っている感じです）。
+Linear Ballistic Accumulator modelでは，複数選択肢の反応時間の解析ができます（Drift-Diffusion modelの場合は，２選択肢に限定されます）。さきほど説明をしましたが，Linear Ballistic Accumulator modelでは，閾値までエビデンスが蓄積されたときに，反応が出力されるという前提があります。選択肢が複数ある場合，最も最初に閾値(b)に到達した選択肢の反応が出力されます（下図の場合，選択肢１の方が，選択肢２よりも先に閾値に到達しているので選択肢１が反応として出力されます）。なお，Linear Ballistic Accumulator modelでは，Decision Timeでエビデンスを蓄積するものをaccumulatorと呼びます（選択肢と言っても良いのですが，エビデンスの蓄積過程を明示的に扱っている感じなのかと思います）。
 
 ![](fig4.png) 
 
 # StanでLinear Ballistic Accumulator modelを使うためのユーザー定義関数の設定
 
- Annisらの[Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)で紹介されていた関数を改変して使った。AnnisらのStanコードは，[AnnisのHP](http://www.vanderbilt.edu/psychological_sciences/bio/jeff-annis)にて配布されています。なお，主な改変は，(1)Annisらのコードをstan 2.10以降の記法に対応させた（<-を=に変更，_logを_lpdfに変更など），(2)Annisらのコードでは，個々の試行の対数尤度が計算されてなかったので，試行ごとの対数尤度を計算できるように修正した（後述）。
- 
-## 特定のaccumulatorの確率密度関数
+それでは，StanででLinear Ballistic Accumulator modelを使ってみたいのですが，2016年12月の時点では，StanにでLinear Ballistic Accumulator modelにおける対数尤度を計算する関数は存在しません。そこで，functionsブロックで，ユーザー定義関数を設定する必要があります。今回は，Annisらの[Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)で紹介されていた関数を改変して使います。AnnisらのStanコードは，[AnnisのHP](http://www.vanderbilt.edu/psychological_sciences/bio/jeff-annis)にて配布されています。AnnisらのStanコードに対する主な改変点は，(1)Annisらのコードをstan2.10以降の記法に対応（<-を=に変更，_logを_lpdfに変更など），(2)Annisらのコードは，個々の試行の対数尤度を計算してなかったので，試行ごとの対数尤度を計算できるような修正の２点なります。以下では，Annisらのコードを改変したものについて説明をしていきます。
 
-LBAのProbability density function（確率密度関数）を計算する関数になる。引数は，t，b，A, v_PDF, sになる。入力にたいして，PDFを返す関数になる。　PDFとは，連続確率変数が取りうるある値での相対尤度を記述する関数である。この関数は Annisらのコードをそのまま使用する（書き方はStan2.11以上に合わせた）。LBAのPDFは以下の式から計算される。
+## 特定のaccumulatorの確率密度関数(lba_pdf)
+
+まず，特定のaccumulatorの確率密度関数(Probability density function)を計算する関数を説明します。特定のaccumulatorの確率密度関数は，以下の数式で計算されます(Brown & Heathcote, 2008)。
 
 $$
 f_i (t) = \frac{1}{A} [-v_i Φ(\frac{b-A-tv_i}{ts})+sϕ(\frac{b-A-tv_i}{ts})+v_i Φ(\frac{b-tv_i}{ts})-sϕ(\frac{b-tv_i}{ts})]
 $$
+
+これをStanコードに落とし込むと，以下のlba_pdfになります。引数は，t，b，A, v_PDF, sになり(v_pdfは，vのことです)，確率密度関数を返します。以下のlba_pdfは Annisらのコードを，Stan2.10以上の記法に修正しただけのものです。
+
 ```{stan,eval=FALSE,output.var="hoge"}
 real lba_pdf(real t, real b, real A, real v_pdf, real s){
-      //PDF of the LBA model
-      
+
       real b_A_tv_ts;
       real b_tv_ts;
       real term_1b;
@@ -82,19 +84,19 @@ real lba_pdf(real t, real b, real A, real v_pdf, real s){
  }
 ```
 
-## 特定のaccumulatorの累積密度関数
+## 特定のaccumulatorの累積密度関数(lba_cdf)
 
-LBAのCumulative Density Function（累積密度関数）を計算する関数になる。引数は，t，b，A, v_cdf, sになる。入力にたいして，CDFを返す関数になる。　PDFとは，CDFとは，ある分布がある値までに累積した確率密度の関数である。この関数は Annisらのコードをそのまま使用する（書き方はStan2.11以上に合わせた）。LBAのCDFは以下の式から計算される。
+次に特定のaccumulatorの累積密度関数(Cumulative Density Function)を計算する関数を説明します。特定のaccumulatorの累積密度関数は，以下の数式で計算されますす(Brown & Heathcote, 2008)。
 
 $$
 F_i (t)=1+\frac{b-A-tv_i}{A} Φ(\frac{b-A-tv_i}{ts})-\frac{b-tv_i}{A}Φ\frac{b-tv_i}{ts}+\frac{ts}{A}ϕ(\frac{b-A-tv_i}{ts})-\frac{ts}{A}ϕ(\frac{b-tv_i}{ts})
 $$
- 
- 
+
+これをStanコードに落とし込むと，以下のlba_cdfになります。引数は，t，b，A, v_cdf, sになり(v_cdfは，vのことです)，累積密度関数を返します。以下のlba_cdfは，Annisらのコードを，，Stan2.10以上の記法に修正しただけのものです。
+
 ```{stan,eval=FALSE,output.var="hoge"}
 real lba_cdf(real t, real b, real A, real v_cdf, real s){
-    //CDF of the LBA model
-    
+
     real b_A_tv;
     real b_tv;
     real ts;
@@ -114,66 +116,20 @@ real lba_cdf(real t, real b, real A, real v_cdf, real s){
     cdf = 1 + term_1a - term_2a + term_3a - term_4a;
     
     return cdf;
-    
 }
 ```
 
-## 特定のaccumulatorが最初に閾値に到達する累積密度関数
+## 特定のaccumulatorが最初に閾値に到達する確率密度関数についての対数尤度関数(lba_lpdf)
 
-上で定義した，lba_cdfとlba_pdfは，時間tにおいて，i番目のaccumulatorが閾値に到達した確率密度や累積密度を出している。それを用いて，複数のaccumulatorがある状況において，どのaccumulatorが最初に閾値につくのかに興味がある（つまり，i番目のaccumulatorにおける反応時間のdefective分布に関心がある）。defective確率密度関数は，lab_cdとlba_pdfを使って以下のような式で計算される。以下の場合，i番目のaccumulatorが一番最初に閾値に到達する確率密度関数は，accumulator iの確率密度関数と，(1-それ以外のaccumulatorの累積密度関数)の総積をかけたものになる。つまり，選択肢iを時間tに選ぶ確率＊他の選択肢の累積確率の残りの総積をしている。これは，選択肢iで反応が起こる確率だけでなく，その他の選択肢で反応が起こらない確率も考慮している。
-
+上で定義した，lba_cdfとlba_pdfは，時間tにおいて，i番目のaccumulatorが閾値に到達した確率密度や累積密度を算出するものです。これら２つを用いて，複数のaccumulatorがある状況で，どのaccumulatorが最初に閾値に到達するのかに関する確率密度関数を算出するのが以下の数式になります。以下の数式をみると，i番目のaccumulatorが一番最初に閾値に到達する確率密度関数は，accumulator iの確率密度関数と，(1-それ以外のaccumulatorの累積密度関数)の総積をかけたものになります。ざっくり説明すると，選択肢(accumulator)iを時間tに選ぶ確率と他の選択肢(accumulator)の累積確率の残りの総積を掛け合わせています。つまり，選択肢iで閾値にが起こる確率だけでなく，その他の選択肢で反応が起こらない確率も考慮しています。
 
 $$
 PDF_i (t)=f_i (t)\prod_{j\neq i}(1-F_j (t))
 $$
 
-## LBAの対数尤度関数(オリジナル)
 
 Annisらによるlba_logは，パラメータと反応時間を用いて，どちらを選択するかをPDFで計算したうえで，その選択確率の尤度を計算する関数になる。なお，閾値(b)は，開始点の上限＋ｋ（相対閾値）であり，t(decision time)は，反応時間-non decision timeである。引数はmatrix RT, real k, real A, vector v, real s, real psiになる。この関数は，RTを行列にしており，１つの実験のブロック単位での対数尤度を計算する。これは，WAICを計算する上で，少々問題になる（WAICの計算では，各従属変数ごとの対数尤度が必要になる）。以下で，Annisらのコードを改変する。
 
-```{stan,eval=FALSE,output.var="hoge"}
-real lba_log(matrix RT, real k, real A, vector v, real s, real psi){
-      
-      real t;
-      real b;
-      real cdf;
-      real pdf;		
-      vector[cols(RT)] prob;
-      real out;
-      real prob_neg;
-      
-      b <- A + k;
-      for (i in 1: cols(RT)){	
-           t <- RT[1, i] - psi;
-           if(t > 0){			
-                cdf <- 1;
-                for(j in 1: num_elements(v)){
-                     if(RT[2, i] == j){
-                          pdf <- lba_pdf(t, b, A, v[j], s);
-                     }else{	
-                          cdf <- lba_cdf(t, b, A, v[j], s) * cdf;
-                     }
-                }
-                prob_neg <- 1;
-                for(j in 1: num_elements(v)){
-                     prob_neg <- Phi(-v[j]/s) * prob_neg;    
-                }
-                prob[i] <- pdf * (1-cdf);		
-                prob[i] <- prob[i] / (1-prob_neg);	
-                if(prob[i] < 1e-10){
-                     prob[i] <- 1e-10;				
-                }
-                
-           }else{
-                prob[i] <- 1e-10;			
-           }		
-      }
-      out <- sum(log(prob));
-      return out;		
- }
-```
-
-## LBAの対数尤度関数（改変版）
 
 上記の問題点から，各試行ごとに対数尤度を計算する関数を作成した。また，rstan2.11以上に対応するために，<-を=に変更したり，_logを_lpdfに変更した。なお，rstan2.11ではユーザ定義関数を生成量ブロックで使う際にバグが生じて動かなかったが，rstan2.12では改善した。最初に，閾値(b)は，開始点の上限＋ｋ（相対閾値）であり，t(decision time)は，反応時間-non decision timeとしている。Annisらのコードでは，データの引数は，RTだけだったが，このコードでは，RT（１ブロック内の反応時間と反応の３次元配列）をrt（特定の試行の反応時間）とres（特定の試行の反応）に分けている。選択した方の選択肢のPDFと選択してない方のCDF（厳密には，選択してない累積確率）を計算する。それを，prob_negでは，vがマイナスになった場合の対処をとっているらしい。prob = pdf * cdfがPDFの計算になる。最後に，out = log(prob)で対数尤度を計算している。
 
@@ -318,9 +274,7 @@ grVizを使ってグラフィカルモデルを描いてみました。むしろ
 grViz("
   digraph dot {
     graph [splines = line,compound = true, nodesep = .5, ranksep = .25,
-           color = black, label='Linear Ballistic Accumulator Model for single participant',
-          ]
-
+           color = black, label='Linear Ballistic Accumulator Model for single participant']
       node [shape = circle,style = filled,fillcolor = white,color = black,label = 'k'] k
       node [label = 'A'] A
       node [label = '&tau;'] t
@@ -329,13 +283,12 @@ grViz("
       node [label = 'S'] s
       node [label = 'LBA@_{t}'] lba
       node [fillcolor = grey,label = 'RT@_{t}'] rt
-      
-      subgraph cluster3 {
+        subgraph cluster3 {
           labelloc=b
           label = 'Trials t = 1...T'
             edge [color = black]
               lba -> rt
-      }
+        }
       edge [color = black]
         A -> lba
         v1 -> lba
@@ -343,10 +296,7 @@ grViz("
         k -> lba
         t -> lba
         s -> lba [taolport=s,headport=e]
-    }
-}
-  ",
-engine = "dot")
+  }",engine = "dot")
 ```
 
 事前分布は以下になります。
