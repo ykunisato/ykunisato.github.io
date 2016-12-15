@@ -92,7 +92,7 @@ $$
 F_i (t)=1+\frac{b-A-tv_i}{A} Φ(\frac{b-A-tv_i}{ts})-\frac{b-tv_i}{A}Φ\frac{b-tv_i}{ts}+\frac{ts}{A}ϕ(\frac{b-A-tv_i}{ts})-\frac{ts}{A}ϕ(\frac{b-tv_i}{ts})
 $$
 
-これをStanコードに落とし込むと，以下のlba_cdfになります。引数は，t，b，A, v_cdf, sになり(v_cdfは，vのことです)，累積密度関数を返します。以下のlba_cdfは，Annisらのコードを，，Stan2.10以上の記法に修正しただけのものです。
+これをStanコードに落とし込むと，以下のlba_cdfになります。引数は，t，b，A, v_cdf, sになり(v_cdfは，vのことです)，累積密度関数を返します。以下のlba_cdfは，Annisらのコードを，Stan2.10以上の記法に修正しただけのものです。
 
 ```{stan,eval=FALSE,output.var="hoge"}
 real lba_cdf(real t, real b, real A, real v_cdf, real s){
@@ -127,13 +127,7 @@ $$
 PDF_i (t)=f_i (t)\prod_{j\neq i}(1-F_j (t))
 $$
 
-
-Annisらによるlba_logは，パラメータと反応時間を用いて，どちらを選択するかをPDFで計算したうえで，その選択確率の尤度を計算する関数になる。なお，閾値(b)は，開始点の上限＋ｋ（相対閾値）であり，t(decision time)は，反応時間-non decision timeである。引数はmatrix RT, real k, real A, vector v, real s, real psiになる。この関数は，RTを行列にしており，１つの実験のブロック単位での対数尤度を計算する。これは，WAICを計算する上で，少々問題になる（WAICの計算では，各従属変数ごとの対数尤度が必要になる）。以下で，Annisらのコードを改変する。
-
-
-上記の問題点から，各試行ごとに対数尤度を計算する関数を作成した。また，rstan2.11以上に対応するために，<-を=に変更したり，_logを_lpdfに変更した。なお，rstan2.11ではユーザ定義関数を生成量ブロックで使う際にバグが生じて動かなかったが，rstan2.12では改善した。最初に，閾値(b)は，開始点の上限＋ｋ（相対閾値）であり，t(decision time)は，反応時間-non decision timeとしている。Annisらのコードでは，データの引数は，RTだけだったが，このコードでは，RT（１ブロック内の反応時間と反応の３次元配列）をrt（特定の試行の反応時間）とres（特定の試行の反応）に分けている。選択した方の選択肢のPDFと選択してない方のCDF（厳密には，選択してない累積確率）を計算する。それを，prob_negでは，vがマイナスになった場合の対処をとっているらしい。prob = pdf * cdfがPDFの計算になる。最後に，out = log(prob)で対数尤度を計算している。
-
-※　Phiは，cumulative unit normal distribution function。
+Annisらは，パラメータと反応時間を用いて，どちらを選択するかの確率密度関数を計算し，その選択確率の対数尤度を計算する関数を作成しています（lba_log）。まず，このlba_logについて，Stan2.10以上の記法に修正したlba_lpdfを作成しました。さらに，Annisらのlba_logでは，対数尤度は個々の反応時間に対して計算されるのではなく，すべての試行の反応時間をまとめた行列に対して計算されます。パラメータの推定では，これで問題は無いように思いますが，WAICなどの計算をした場合に，微妙なのではないかと思いました（私の理解では，個々のデータについて対数尤度を計算する必要があるように思います）。そこで，条件などでひとまとまりになった反応時間ではなく，個々の反応時間について対数尤度を計算できるように改変をおこなっています。
 
 ```{stan,eval=FALSE,output.var="hoge"}
 real lba_lpdf(real rt, real res, real k, real A, vector v, real s, real tau){
@@ -177,9 +171,9 @@ real lba_lpdf(real rt, real res, real k, real A, vector v, real s, real tau){
 ```
 
 
-## LBAのrng関数
+## Linear Ballistic Accumulator modelのrng関数
 
-rngは，乱数発生関数になる。パラメータを引数として，そこから反応時間と反応の乱数を作成する。出力はpredであり，pred[1]が反応時間，pred[2]が反応になる。この関数はAnnisらのコードをそのまま使用する（書き方はStan2.11以上に合わせた）。
+lba_rngは，Linear Ballistic Accumulator modelに基づいて，反応時間と反応を生成する乱数発生関数です。出力はpredであり，pred[1]が反応時間，pred[2]が反応です。以下のlba_rngは，Annisらのコードを，Stan2.10以上の記法に修正しただけのものです。
 
 ```{stan,eval=FALSE,output.var="hoge"}
 vector lba_rng(real k, real A, vector v, real s, real psi){
@@ -249,26 +243,29 @@ vector lba_rng(real k, real A, vector v, real s, real psi){
 
 # RStanによるLinear Ballistic Accumulator modelを用いた解析
 
+ユーザー定義関数が作成できましたので，いよいよ，Rstanを使って解析をしていきましょう！
+
 ## 使用パッケージ
-ワークスペースのクリアをして，以下のパッケージを読み込みます。
+
+今回は，以下のパッケージを用います。
+
 ```{r, message=FALSE, warning=FALSE}
-rm(list=ls(all=TRUE))
-#グラフィカルモデル用
+# グラフィカルモデル用
 library(DiagrammeR)
-#グラフ作成用
+# グラフ作成用
 library(ggplot2)
 library(plotly)
 library(bayesplot)
-#Stan用
+# Stan用
 library(rstan)
 library(loo)
-#LBA用データの生成
+# Linear Ballistic Accumulator model用データの生成
 library(rtdists)
 ```
 
 ## グラフィカルモデル
 
-grVizを使ってグラフィカルモデルを描いてみました。むしろ面倒ではないかという気もしますが(例えば，sとLBAの間のエッジはそのままだと隣のノードと重なるので，tailportとかheadportとのか設定を追加しています)，なれると便利です。
+DiagrammeRのgrVizを使って，グラフィカルモデルを描いてみました。むしろ面倒ではないかという気もしますが(例えば，sとLBAの間のエッジはそのままだと隣のノードと重なるので，tailportとかheadportとのか設定を追加しています)，慣れれば多分便利です。多分。
 
 ```{r}
 grViz("
@@ -299,7 +296,7 @@ grViz("
   }",engine = "dot")
 ```
 
-事前分布は以下になります。
+事前分布はAnnisらを参考に以下にしました。
 $$ 
 k \sim Normal(.5,1)T[0,]\\
 A \sim Normal(.5,1)T[0,]\\
@@ -311,19 +308,28 @@ $$
 
 ## データの作成
 
+rtdistsのrLBA関数を用いて，A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1のときの反応時間と反応を500個生成しました。作ったデータは，dataに格納し，さらにstanDataにStanで使えるようにリスト形式で保存しています。
+
 ```{r, message=FALSE, warning=FALSE}
-#データセットの作成（t0 = non decision time）
-set.seed(123)
+#データセットの作成
+set.seed(1234)
 data <- rLBA(500, A=0.5, b=1, t0 = 0.5, mean_v=c(2, 1.5), sd_v=c(1,1))
 trialLength = length(data$rt)
 stanData <- list(rt=data$rt,res=data$response,LENGTH=trialLength,NUM_CHOICES=2)
 ```
 
 
-##　データの確認
+## データの確認
+
+選択肢ごとの反応数です。
+
 ```{r, message=FALSE, warning=FALSE}
 table(data$response)
+```
 
+選択肢ごとの反応時間のヒストグラムです。
+
+```{r, message=FALSE, warning=FALSE}
 # 選択肢1の反応時間
 data1 <- subset(data,data$response==1)
 p1 <- ggplot(data1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
@@ -336,9 +342,9 @@ subplot(p1, p2)
 
 ## Stanコード
 
+上記で設定したfunctionブロックだけでなく，dataブロック以降も書きました。
 
-※なお，以降は，kazutan氏の[Stan Advent 2016の記事](http://qiita.com/kazutan/items/6cc162bc3c4b1b9062f2)を参考に，R MarkdownにStanコード直書きしてコンパイルする方法をとっています（私のRの利用の仕方からすると，これ便利です）。
-
+※なお，以降は，@kazutan氏の[Stan Advent 2016の記事](http://qiita.com/kazutan/items/6cc162bc3c4b1b9062f2)を参考に，R MarkdownにStanコード直書きしてコンパイルする方法をとっています。つまり，チャンクで，{stan output.var="lbaModel"}と指定しています。私のRの利用の仕方からすると，これ便利です。
 
 ```{stan output.var="lbaModel"}
 functions{
@@ -541,6 +547,8 @@ generated quantities {
 
 ## Rstanによるサンプリング
 
+さてさて，サンプリングしてみます。
+
 ```{r, message=FALSE, warning=FALSE}
 rstan_options(auto_write=TRUE)
 options(mc.cores = parallel::detectCores())
@@ -558,13 +566,10 @@ fit <- sampling(lbaModel,
             thin =hmcThin)
 ```
 
-## 結果
+## 収束判定{.tabset}
+まあ，収束してそうですね。収束判定には，bayesplotを活用しています。[このページ](https://cran.rstudio.com/web/packages/bayesplot/vignettes/MCMC-diagnostics.html)が参考になりました。なお，定数のSは除外しています。
 
-### 収束判定{.tabset}
-まあ，収束してそうですね。収束判定には，bayesplotを活用しています。[このページ](https://cran.rstudio.com/web/packages/bayesplot/vignettes/MCMC-diagnostics.html)が参考になりました。
-なお，定数のSは除外しています。
-
-#### トレースプロット
+### トレースプロット
 ```{r, message=FALSE, warning=FALSE}
 posterior1 <- extract(fit, inc_warmup = TRUE, permuted = FALSE)
 color_scheme_set("mix-blue-pink")
@@ -574,7 +579,7 @@ p <- p+ facet_text(size = 15)
 plot(p)
 ```
 
-#### $\hat{R}$の確認
+### $\hat{R}$の確認
 
 ```{r, message=FALSE, warning=FALSE}
 color_scheme_set("brightblue")
@@ -583,34 +588,37 @@ print(rhats)
 mcmc_rhat(rhats) + yaxis_text()
 ```
 
-#### 有効サンプルサイズ
+### 有効サンプルサイズ
 ```{r, message=FALSE, warning=FALSE}
 neffRatios <- neff_ratio(fit,par = c("k", "A", "tau", "v[1]", "v[2]"))
 print(neffRatios)
 mcmc_neff(neffRatios) + yaxis_text()
 ```
 
-#### 自己相関
+### 自己相関
 ```{r, message=FALSE, warning=FALSE}
 posterior2 <- as.matrix(fit)
 mcmc_acf(posterior2, pars = c("k","A","tau","v[1]","v[2]"), lags = 10)
 ```
 
-### No-U-Turn Samplerの診断{.tabset}
-#### Divergent transitions
+## No-U-Turn Samplerの診断{.tabset}
+bayesplotで簡単に描けたので，載っけてみました。
+
+### Divergent transitions
 
 ```{r, message=FALSE, warning=FALSE}
 mcmc_nuts_divergence(nuts_params(fit), log_posterior(fit))
 ```
 
-#### Energy and Bayesian fraction of missing information
+### Energy and Bayesian fraction of missing information
 
 ```{r, message=FALSE, warning=FALSE}
 mcmc_nuts_energy(nuts_params(fit),merge_chains = FALSE)
 ```
 
-### 推定結果
+## 推定結果
 
+MAP推定値も計算してみました。
 ```{r, message=FALSE, warning=FALSE}
 extractFit <- rstan::extract(fit)
 # MAP推定値計算関数
@@ -623,17 +631,25 @@ AMap <- mapEstimate(extractFit$A)
 tauMap <- mapEstimate(extractFit$tau)
 v1Map <- mapEstimate(extractFit$v[,1])
 v2Map <- mapEstimate(extractFit$v[,2])
+```
 
+A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1で，データを作ったので，おおよそパラメータリカバリーできているかな。
+
+```{r, message=FALSE, warning=FALSE}
 print(fit,par = c("k", "A", "tau", "v[1]", "v[2]","s"))
 # MAP推定値
 print(paste("k=",kMap,",A=",AMap,",tau=",tauMap,",v1=",v1Map,",v2=",v2Map))
 ```
 
+bayesplotのmcmc_areasって便利ですね。
+
 ```{r, message=FALSE, warning=FALSE}
 mcmc_areas(posterior2, pars = c("k", "A", "tau", "v[1]", "v[2]"), prob = 0.95)
 ```
 
-### 事後予測チェック
+## 事後予測チェック{.tabset}
+
+収束もしていたので，事後予測チェックをしてみます。Stanが吐き出したpredからそれぞれ500サンプルランダムに抽出したデータセットを２つ作ってみました。
 
 ```{r, message=FALSE, warning=FALSE}
 predRt = posterior2[,'pred[1]']
@@ -649,43 +665,50 @@ postPredData1<-postPredData[sampleId,]
 set.seed(123)
 sampleId<-sample(nrow(postPredData),500)
 postPredData2<-postPredData[sampleId,]
+```
 
-# クロス表で確認
+クロス集計で確認をします。まあまあ，良い感じ？
+
+```{r, message=FALSE, warning=FALSE}
 table(data$response)
 table(postPredData1$predRes)
 table(postPredData2$predRes)
 ```
 
+反応時間のヒストグラムも良い感じ？
+
+### 反応時間の分布（データ）
+
 ```{r, message=FALSE, warning=FALSE}
-# データの選択肢1の反応時間
 data1 <- subset(data,data$response==1)
 p1 <- ggplot(data1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70)) 
-
-# データの選択肢2の反応時間
 data2 <- subset(data,data$response==2)
 p2 <- ggplot(data2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))+ ggtitle("データの反応時間のヒストグラム（左が選択肢１，右が選択肢２）")
 subplot(p1,p2)
+```
 
-# 事後予測の選択肢1の反応時間
+### 反応時間の分布（事後予測１）
+
+```{r, message=FALSE, warning=FALSE}
 postPredData11 <- subset(postPredData1,postPredData$predRes==1)
 p3 <- ggplot(postPredData11,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
-#　事後予測の選択肢2の反応時間
 postPredData12 <- subset(postPredData1,postPredData$predRes==2)
 p4 <- ggplot(postPredData12,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))+ ggtitle("事後予測の反応時間のヒストグラム　その１（左が選択肢１，右が選択肢２）")
 subplot(p3,p4)
+```
 
-# 事後予測の選択肢1の反応時間
+### 反応時間の分布（事後予測２）
+
+```{r, message=FALSE, warning=FALSE}
 postPredData21 <- subset(postPredData2,postPredData$predRes==1)
 p5 <- ggplot(postPredData21,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
-#　事後予測の選択肢2の反応時間
 postPredData22 <- subset(postPredData2,postPredData$predRes==2)
 p6 <- ggplot(postPredData22,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))+ ggtitle("事後予測の反応時間のヒストグラム　その２（左が選択肢１，右が選択肢２）")
 subplot(p5,p6)
 ```
 
-
-### 情報量基準(WAICとLOOCV)の算出
-@berobero11氏の[Stan Advent 2016](http://statmodeling.hatenablog.com/entry/comparison-of-LOOCV-and-WAIC)を参考にしつつWAICとLOOCVの算出をしてみた。今回は，あまり意味ないけど，今後モデル比較する場合には，活用できる。
+## 情報量基準(WAICとLOOCV)の算出
+@berobero11氏の[Stan Advent 2016](http://statmodeling.hatenablog.com/entry/comparison-of-LOOCV-and-WAIC)を参考にしつつWAICとLOOCVの算出をしてみた。今回は，あまり意味ないけど，今後モデル比較する場合には，活用できるかなと思います。
 
 ```{r}
 loo::loo(extractFit$log_lik)$looic/(2*trialLength)
@@ -695,4 +718,4 @@ loo::waic(extractFit$log_lik)$waic/(2*trialLength)
 ここまで出来たら，複数の参加者のデータに対して階層ベイズにもっていきたいところですが，ちょっと分量が長くなりすぎてしまったので，またの機会に！  
 
 
-**Enjoy!**
+**Enjoy Stan!**
