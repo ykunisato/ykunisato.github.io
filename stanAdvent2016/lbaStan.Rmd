@@ -1,6 +1,6 @@
 ---
 title: "RStanによる反応時間の解析：Linear Ballistic Accumulator modelを用いて"
-author: "専修大学人間科学部　国里愛彦"
+author: "専修大学人間科学部心理学科　国里愛彦"
 date: "2016年12月22日"
 output:
   html_document:
@@ -12,22 +12,24 @@ output:
 ---
 
 
-本資料は，[Stan Advent Calendar 2016](http://qiita.com/advent-calendar/2016/stan)に向けて作成した資料です。心理学や神経科学などで用いられる反応時間について，Linear Ballistic Accumulator modelを用いて解析する方法を解説しています。本資料は， Annis et al. (2016). [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)の紹介を通して，以下の２点を目的としています。
+本資料は，[Stan Advent Calendar 2016](http://qiita.com/advent-calendar/2016/stan)に向けて作成した資料です。Linear Ballistic Accumulator modelを用いた反応時間の解析について解説しています。Annis et al. (2016)による [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)を紹介しつつ，以下の２点を目的としています。
 
 1. Linear Ballistic Accumulator modelを用いた反応時間の解析を理解する
 1. Stanでユーザー定義関数を用いる方法を理解する
+
+ちなみ，2016年12月現在，Rstanがggplot2の最新版に対応できてない関係でrstanのtraceplot()が使えなかったので，bayesplotパッケージを使ってみました。これが便利だったので，これの紹介も途中から副次的な目的に追加しました。
 
 
 # Linear Ballistic Accumulator modelについて
 ## 反応時間の解析とは？
 
-心理学や神経科学などにおいて，人や動物の行動を対象とした場合、何か刺激を提示してから反応するまでにかかる時間を解析することって結構多いかと思います。こういうのを反応時間と言います。以下の図で説明すると，二重丸が出てきたらボタンを押すという実験状況があったとして，二重丸の提示からボタン押しまにかかる反応時間を解析するというものです。二重丸が出たらボタンを押すというのはあまり意味のある実験には思えないかもしれません。実際は，提示する刺激の特性を変化させたり，反応のルールを操作することで，反応時間に違いが生じるかを調べることが多いです。よく知らないですけど，ウェブ上で複数の広告を出してからどれかをクリックするまでの時間を調べたいときも，同様かなと思います。より詳しく知りたい方は，脳科学辞典の[反応時間](https://bsd.neuroinf.jp/wiki/%E5%8F%8D%E5%BF%9C%E6%99%82%E9%96%93)を参照ください。
+心理学や神経科学などにおいて，人や動物の行動を対象とした場合、何か刺激を提示してから反応するまでにかかる反応時間を解析することが結構多いです。以下の図のように，二重丸が出てきたらボタンを押すという実験があったとします。この二重丸の提示からボタン押しまでにかかる時間を解析するのが反応時間の解析です。実際は，提示する刺激の性質を変化させたり，反応のルールを操作することで，反応時間に違いが生じるかを調べることが多いです。詳細は，脳科学辞典の[反応時間](https://bsd.neuroinf.jp/wiki/%E5%8F%8D%E5%BF%9C%E6%99%82%E9%96%93)を参照ください。
 
 ![](fig1.png) 
 
-## 従来の反応時間の解析と逐次サンプリングモデル
+## 従来の反応時間の解析とLinear Ballistic Accumulator model
 
-従来の反応時間の解析では，群間or条件間の平均値の差をt検定や分散分析で検定するというのが多かったように思います。そして，明らかになった平均値の差が，実験的な刺激の操作や群の違いを反映していると考えます。しかし，反応時間というものをよく考えると，その中にはいろいろな成分が入っています。下の図を見てください。私達が刺激が出てから反応するまでに，(1)刺激の読み込み，(2)判断，(3)ボタンを押す動作の３つがあるように思えます。多くの場合，研究者が関心のあるのは，「判断」になります。そのため，「刺激の読み込み」と「ボタンを押す動作」のような無判断時間（Non Decision Time）と判断にかかる時間（Decision Time）に分けて考えるほうが自然かと思います。このような反応時間の生成についてのモデルとして，逐次サンプリングモデルがあり，その１つにLinear Ballistic Accumulator model（無理やり訳すなら，線形弾道蓄積モデル）があります。逐次サンプリングモデルの代表的なモデルとしてdrift-diffusion modelもありますが，今回はLinear Ballistic Accumulator modelを取り上げます（Linear Ballistic Accumulator modelは，Drift-Diffusion modelをよりシンプルにしたものです）。Linear Ballistic Accumulator modelは，Brown & Heathcote(2008)による[The simplest complete model of choice response time: Linear ballistic accumulation](https://www.ncbi.nlm.nih.gov/pubmed/18243170)で提案されたモデルになります（数理モデルの導出は本論文のAppendixを参照ください）。
+従来の反応時間の解析では，群間or条件間の平均値の差をt検定や分散分析で検定するということが多かったように思います。そして，統計学的に有意な平均値の差をもって，実験的な刺激の操作や群の違いが反応時間に反映されていると考えます。しかし，反応時間というものをよく考えると，その中にはいろいろな成分が入っています。下の図を見てください。私達が刺激が出てから反応するまでに，(1)刺激の読み込み，(2)判断，(3)ボタンを押す動作の３つがあるかと思います。そのうち多くの研究者が関心をもつのは，「判断」の部分になります。そのため，「刺激の読み込み」と「ボタンを押す動作」のような無判断時間（Non Decision Time）と判断にかかる時間（Decision Time）に分けて考えるほうが自然かと思います。このような反応時間の生成についてのモデルとして，逐次サンプリングモデルがあり，その１つにLinear Ballistic Accumulator modelがあります。逐次サンプリングモデルの代表的なモデルとしては，Drift-Diffusion modelもありますが，今回は，よりシンプルなLinear Ballistic Accumulator modelを取り上げます。Linear Ballistic Accumulator modelは，Brown & Heathcote(2008)による[The simplest complete model of choice response time: Linear ballistic accumulation](https://www.ncbi.nlm.nih.gov/pubmed/18243170)で提案されたモデルになります（数理モデルの導出は，この論文のAppendixを参照ください）。
 
 ![](fig2.png) 
 
@@ -309,10 +311,13 @@ library(rtdists)
 ```
 
 ## グラフィカルモデル
-```{r, echo=FALSE}
+
+grVizを使ってグラフィカルモデルを描いてみました。むしろ面倒ではないかという気もしますが(例えば，sとLBAの間のエッジはそのままだと隣のノードと重なるので，tailportとかheadportとのか設定を追加しています)，なれると便利です。
+
+```{r}
 grViz("
   digraph dot {
-    graph [compound = true, nodesep = .5, ranksep = .25,
+    graph [splines = line,compound = true, nodesep = .5, ranksep = .25,
            color = black, label='Linear Ballistic Accumulator Model for single participant',
           ]
 
@@ -337,26 +342,26 @@ grViz("
         v2 -> lba
         k -> lba
         t -> lba
-        s -> lba
+        s -> lba [taolport=s,headport=e]
     }
 }
   ",
 engine = "dot")
 ```
+
+事前分布は以下になります。
 $$ 
 k \sim Normal(.5,1)T[0,]\\
 A \sim Normal(.5,1)T[0,]\\
 \tau \sim Normal(.5,.5)T[0,]\\
 v[1],v[2] \sim Normal(2,1)T[0,]\\
-S = 1 \hspace{30pt}※Sは定数\\
-RT[t] \sim LBA(k,A,\tau,v1,s) \hspace{30pt}※選択肢１の時\\
-RT[t] \sim LBA(k,A,\tau,v2,s) \hspace{30pt}※選択肢2の時
+S = 1 \hspace{30pt}※Sは定数
 $$
 
 
 ## データの作成
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 #データセットの作成（t0 = non decision time）
 set.seed(123)
 data <- rLBA(500, A=0.5, b=1, t0 = 0.5, mean_v=c(2, 1.5), sd_v=c(1,1))
@@ -366,7 +371,7 @@ stanData <- list(rt=data$rt,res=data$response,LENGTH=trialLength,NUM_CHOICES=2)
 
 
 ##　データの確認
-```{r}
+```{r, message=FALSE, warning=FALSE}
 table(data$response)
 
 # 選択肢1の反応時間
@@ -376,8 +381,7 @@ p1 <- ggplot(data1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3
 # 選択肢2の反応時間
 data2 <- subset(data,data$response==2)
 p2 <- ggplot(data2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
-p <- subplot(p1, p2)
-ggplotly(p)
+subplot(p1, p2)
 ```
 
 ## Stanコード
@@ -588,7 +592,6 @@ generated quantities {
 ## Rstanによるサンプリング
 
 ```{r, message=FALSE, warning=FALSE}
-# オプション設定
 rstan_options(auto_write=TRUE)
 options(mc.cores = parallel::detectCores())
 hmcIter = 1000
@@ -596,8 +599,6 @@ hmcChains = 4
 hmcWarmup = 300
 hmcThin = 2
 
-
-# サンプリング
 fit <- sampling(lbaModel, 
             seed = 1234, 
             data = stanData,
@@ -614,18 +615,18 @@ fit <- sampling(lbaModel,
 なお，定数のSは除外しています。
 
 #### トレースプロット
-```{r}
+```{r, message=FALSE, warning=FALSE}
 posterior1 <- extract(fit, inc_warmup = TRUE, permuted = FALSE)
 color_scheme_set("mix-blue-pink")
 p <- mcmc_trace(posterior1,  pars = c("k", "A", "tau", "v[1]", "v[2]"), n_warmup = 125,
                 facet_args = list(nrow = 2, labeller = label_parsed))
-p + facet_text(size = 15)
+p <- p+ facet_text(size = 15)
 plot(p)
 ```
 
 #### $\hat{R}$の確認
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 color_scheme_set("brightblue")
 rhats <- rhat(fit,par = c("k", "A", "tau", "v[1]", "v[2]"))
 print(rhats)
@@ -633,38 +634,34 @@ mcmc_rhat(rhats) + yaxis_text()
 ```
 
 #### 有効サンプルサイズ
-```{r}
+```{r, message=FALSE, warning=FALSE}
 neffRatios <- neff_ratio(fit,par = c("k", "A", "tau", "v[1]", "v[2]"))
 print(neffRatios)
 mcmc_neff(neffRatios) + yaxis_text()
 ```
 
 #### 自己相関
-```{r}
+```{r, message=FALSE, warning=FALSE}
 posterior2 <- as.matrix(fit)
-mcmc_acf(posterior2, pars = "k", lags = 10)
-mcmc_acf(posterior2, pars = "A", lags = 10)
-mcmc_acf(posterior2, pars = "tau", lags = 10)
-mcmc_acf(posterior2, pars = "v[1]", lags = 10)
-mcmc_acf(posterior2, pars = "v[2]", lags = 10)
+mcmc_acf(posterior2, pars = c("k","A","tau","v[1]","v[2]"), lags = 10)
 ```
 
 ### No-U-Turn Samplerの診断{.tabset}
 #### Divergent transitions
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 mcmc_nuts_divergence(nuts_params(fit), log_posterior(fit))
 ```
 
 #### Energy and Bayesian fraction of missing information
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 mcmc_nuts_energy(nuts_params(fit),merge_chains = FALSE)
 ```
 
 ### 推定結果
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 extractFit <- rstan::extract(fit)
 # MAP推定値計算関数
 mapEstimate <- function(z){
@@ -678,53 +675,62 @@ v1Map <- mapEstimate(extractFit$v[,1])
 v2Map <- mapEstimate(extractFit$v[,2])
 
 print(fit,par = c("k", "A", "tau", "v[1]", "v[2]","s"))
-print("MAP推定値")
+# MAP推定値
 print(paste("k=",kMap,",A=",AMap,",tau=",tauMap,",v1=",v1Map,",v2=",v2Map))
 ```
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 mcmc_areas(posterior2, pars = c("k", "A", "tau", "v[1]", "v[2]"), prob = 0.95)
 ```
 
 ### 事後予測チェック
 
+```{r, message=FALSE, warning=FALSE}
+predRt = posterior2[,'pred[1]']
+predRes = posterior2[,'pred[2]']
+postPredData <- data.frame(predRt,predRes)
 
+# 事後予測サンプルから500個抽出その１
+set.seed(321)
+sampleId<-sample(nrow(postPredData),500)
+postPredData1<-postPredData[sampleId,]
 
+# 事後予測サンプルから500個抽出その２
+set.seed(123)
+sampleId<-sample(nrow(postPredData),500)
+postPredData2<-postPredData[sampleId,]
 
-
-可能なら，サブプロットごとにタイトルをつけたいです。
-
-
-
-
-```{r}
-pred_rt = posterior2[,'pred[1]']
-pred_resp = posterior2[,'pred[2]']
-# 500サンプルを抽出
-postPredData <- data.frame(pred_rt[1:500],pred_resp[1:500])
-names(postPredData) <- c("predRt","predRes")
-
+# クロス表で確認
 table(data$response)
-table(postPredData$predRes)
+table(postPredData1$predRes)
+table(postPredData2$predRes)
+```
 
+```{r, message=FALSE, warning=FALSE}
 # データの選択肢1の反応時間
 data1 <- subset(data,data$response==1)
 p1 <- ggplot(data1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70)) 
 
 # データの選択肢2の反応時間
 data2 <- subset(data,data$response==2)
-p2 <- ggplot(data2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+p2 <- ggplot(data2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))+ ggtitle("データの反応時間のヒストグラム（左が選択肢１，右が選択肢２）")
+subplot(p1,p2)
 
-# 事後予測データの選択肢1の反応時間
-postPredData1 <- subset(postPredData,postPredData$predRes==1)
-p3 <- ggplot(postPredData1,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+# 事後予測の選択肢1の反応時間
+postPredData11 <- subset(postPredData1,postPredData$predRes==1)
+p3 <- ggplot(postPredData11,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+#　事後予測の選択肢2の反応時間
+postPredData12 <- subset(postPredData1,postPredData$predRes==2)
+p4 <- ggplot(postPredData12,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))+ ggtitle("事後予測の反応時間のヒストグラム　その１（左が選択肢１，右が選択肢２）")
+subplot(p3,p4)
 
-#　事後予測データの選択肢2の反応時間
-postPredData2 <- subset(postPredData,postPredData$predRes==2)
-p4 <- ggplot(postPredData2,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
-
-p <- subplot(p1,p2,p3,p4)
-ggplotly(p)
+# 事後予測の選択肢1の反応時間
+postPredData21 <- subset(postPredData2,postPredData$predRes==1)
+p5 <- ggplot(postPredData21,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+#　事後予測の選択肢2の反応時間
+postPredData22 <- subset(postPredData2,postPredData$predRes==2)
+p6 <- ggplot(postPredData22,aes(x = predRt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))+ ggtitle("事後予測の反応時間のヒストグラム　その２（左が選択肢１，右が選択肢２）")
+subplot(p5,p6)
 ```
 
 
@@ -735,3 +741,8 @@ ggplotly(p)
 loo::loo(extractFit$log_lik)$looic/(2*trialLength)
 loo::waic(extractFit$log_lik)$waic/(2*trialLength)
 ```
+
+ここまで出来たら，複数の参加者のデータに対して階層ベイズにもっていきたいところですが，ちょっと分量が長くなりすぎてしまったので，またの機会に！  
+
+
+**Enjoy!**
