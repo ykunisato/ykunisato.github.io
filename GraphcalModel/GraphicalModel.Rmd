@@ -1,0 +1,214 @@
+---
+title: "Rでグラフィカルモデル"
+author: "Yoshihiko Kunisato"
+date: "`r format(Sys.time(), '%Y/%m/%d')`"
+output:
+  html_document:
+    md_extensions: -ascii_identifiers
+    number_sections: yes
+    theme: paper
+    toc: yes
+    toc_float: yes
+---
+
+# preview版のRstudioでMarkdownがStanに対応！
+
+Markdownにstanコードを直書きして，チャンクの部分{stan output.var="モデル名"}ってやって実行する。すると，Stanコードがコンパイルされて，指定したモデル名で保存される。あとはサンプリングだけでよろし。詳しくは，[@kazutanの資料](http://qiita.com/kazutan/items/6cc162bc3c4b1b9062f2)を参照。
+
+# Rでグラフィカルモデル（保存版）
+## 使用パッケージ
+```{r,message=FALSE}
+library(DiagrammeR)
+```
+
+##　DiagrammeRのgrVizでグラフィカルモデル
+
+第１回目でDiagrammeRのgrVizでグラフィカルモデルを描く方法を紹介しましたが，エッジがくねる問題やサブグラフのラベル位置などで不満も残りました。今回，その解決ができました。エッジがくねる問題には，splines = line って指定することでクリアできます（微調整は，headportとtailportで行う）。
+
+### 前回の内容
+```{r}
+grViz("
+  digraph dot {
+    graph [compound = true, nodesep = .5, ranksep = .25,
+           color = black, label='Hierarchical Linear Ballistic Accumulator Model: model1']
+
+      node [shape = circle,style = filled,fillcolor = white,color = black,label = 'k@_{i}'] k
+      node [label = '&mu;@_{k}'] mk
+      node [label = '&sigma;@_{k}'] sk
+      node [label = 'A@_{i}'] A
+      node [label = '&mu;@_{A}'] mA
+      node [label = '&sigma;@_{A}'] sA
+      node [label = '&tau;@_{i}'] t
+      node [label = '&mu;@_{&tau;}'] mt
+      node [label = '&sigma;@_{&tau;}'] st
+      node [label = 'v1@_{i}'] v1
+      node [label = '&mu;@_{v1}'] mv1
+      node [label = '&sigma;@_{v1}'] sv1
+      node [label = 'v2@_{i}'] v2
+      node [label = '&mu;@_{v2}'] mv2
+      node [label = '&sigma;@_{v2}'] sv2
+      node [label = 'S'] s
+      node [label = 'LBA@_{t,i}'] lba
+      node [fillcolor = grey,label = 'RT@_{t,i}'] rt
+    subgraph cluster1 {
+      label = 'Participants i=1...N'
+      subgraph cluster2 {
+        label = 'Trials t = 1...T'
+        edge [color = black]
+          lba -> rt
+
+      }
+        edge [color = black]
+          v1 -> lba
+          v2 -> lba
+          k -> lba
+          A -> lba
+          t -> lba
+    }
+    edge [color = black]
+      s -> lba
+      mk -> k
+      sk -> k
+      mA -> A
+      sA -> A
+      mt -> t
+      st -> t
+      mv1 -> v1
+      sv1 -> v1
+      mv2 -> v2
+      sv2 -> v2
+ }
+  ",
+engine = "dot")
+```
+
+### 修正1
+
+graph内にsplines = line，subgraph内にlabelloc=bを追加した。
+
+```{r}
+grViz("
+  digraph dot {
+    graph [splines = line,compound = true, nodesep = .5, ranksep = .25,
+           color = black, label='Hierarchical Linear Ballistic Accumulator Model: model1']
+
+      node [shape = circle,style = filled,fillcolor = white,color = black,label = 'k@_{i}'] k
+      node [label = '&mu;@_{k}'] mk
+      node [label = '&sigma;@_{k}'] sk
+      node [label = 'A@_{i}'] A
+      node [label = '&mu;@_{A}'] mA
+      node [label = '&sigma;@_{A}'] sA
+      node [label = '&tau;@_{i}'] t
+      node [label = '&mu;@_{&tau;}'] mt
+      node [label = '&sigma;@_{&tau;}'] st
+      node [label = 'v1@_{i}'] v1
+      node [label = '&mu;@_{v1}'] mv1
+      node [label = '&sigma;@_{v1}'] sv1
+      node [label = 'v2@_{i}'] v2
+      node [label = '&mu;@_{v2}'] mv2
+      node [label = '&sigma;@_{v2}'] sv2
+      node [label = 'S'] s
+      node [label = 'LBA@_{t,i}'] lba
+      node [fillcolor = grey,label = 'RT@_{t,i}'] rt
+    subgraph cluster1 {
+      labelloc=b
+      label = 'Participants i=1...N'
+      subgraph cluster2 {
+        labelloc=b
+        label = 'Trials t = 1...T'
+        edge [color = black]
+          lba -> rt
+
+      }
+        edge [color = black]
+          v1 -> lba
+          v2 -> lba
+          k -> lba
+          A -> lba
+          t -> lba
+    }
+    edge [color = black]
+      s -> lba
+      mk -> k
+      sk -> k
+      mA -> A
+      sA -> A
+      mt -> t
+      st -> t
+      mv1 -> v1
+      sv1 -> v1
+      mv2 -> v2
+      sv2 -> v2
+ }
+  ",
+engine = "dot")
+```
+
+### 完成
+
+$\sigma_{v2}$から$V2_{i}$へのエッジが他のノードに重なっているのが許せないので，，headportとtailportで微調整。
+
+```{r}
+grViz("
+  digraph dot {
+    graph [splines = line,compound = true, nodesep = .5, ranksep = .25,
+           color = black, label='Hierarchical Linear Ballistic Accumulator Model: model1']
+
+      node [shape = circle,style = filled,fillcolor = white,color = black,label = 'k@_{i}'] k
+      node [label = '&mu;@_{k}'] mk
+      node [label = '&sigma;@_{k}'] sk
+      node [label = 'A@_{i}'] A
+      node [label = '&mu;@_{A}'] mA
+      node [label = '&sigma;@_{A}'] sA
+      node [label = '&tau;@_{i}'] t
+      node [label = '&mu;@_{&tau;}'] mt
+      node [label = '&sigma;@_{&tau;}'] st
+      node [label = 'v1@_{i}'] v1
+      node [label = '&mu;@_{v1}'] mv1
+      node [label = '&sigma;@_{v1}'] sv1
+      node [label = 'v2@_{i}'] v2
+      node [label = '&mu;@_{v2}'] mv2
+      node [label = '&sigma;@_{v2}'] sv2
+      node [label = 'S'] s
+      node [label = 'LBA@_{t,i}'] lba
+      node [fillcolor = grey,label = 'RT@_{t,i}'] rt
+    subgraph cluster1 {
+      labelloc=b
+      label = 'Participants i=1...N'
+      subgraph cluster2 {
+        labelloc=b
+        label = 'Trials t = 1...T'
+        edge [color = black]
+          lba -> rt
+
+      }
+        edge [color = black]
+          v1 -> lba
+          v2 -> lba
+          k -> lba
+          A -> lba
+          t -> lba
+    }
+    edge [color = black]
+      s -> lba
+      mk -> k
+      sk -> k
+      mA -> A
+      sA -> A
+      mt -> t
+      st -> t
+      mv1 -> v1
+      sv1 -> v1
+      mv2 -> v2
+      sv2 -> v2 [headport=e,tailport=s]
+ }
+  ",
+engine = "dot")
+```
+
+
+数式も簡単〜
+$$ 
+k_{i} \sim Normal(\mu_{k},\sigma_{k})T(0,\infty) \\
+A_{i} \sim Normal(\mu_{A},\sigma_{A})T(0,\infty)
+$$

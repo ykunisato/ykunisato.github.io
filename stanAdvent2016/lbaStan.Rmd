@@ -308,7 +308,7 @@ $$
 
 ## データの作成
 
-rtdistsのrLBA関数を用いて，A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1のときの反応時間と反応を500個生成しました。作ったデータは，dataに格納し，さらにstanDataにStanで使えるようにリスト形式で保存しています。
+rtdistsのrLBA関数を用いて，A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1のときの反応時間と反応を500個生成しました。つまり，一人の参加者が500回も反応をしたという想定です（ちょっと多いですね）。作ったデータは，dataに格納し，さらにstanDataにStanで使えるようにリスト形式で保存しています。
 
 ```{r, message=FALSE, warning=FALSE}
 #データセットの作成
@@ -714,6 +714,53 @@ subplot(p5,p6)
 loo::loo(extractFit$log_lik)$looic/(2*trialLength)
 loo::waic(extractFit$log_lik)$waic/(2*trialLength)
 ```
+# 以降作成中
+
+## データ数を増やしてパラメータリカバリーをしてみる
+
+
+```{r, message=FALSE, warning=FALSE}
+#データセットの作成
+set.seed(1234)
+data5000 <- rLBA(5000, A=0.5, b=1, t0 = 0.5, mean_v=c(2, 1.5), sd_v=c(1,1))
+trialLength5000 = length(data5000$rt)
+stanData5000 <- list(rt=data5000$rt,res=data5000$response,LENGTH=trialLength5000,NUM_CHOICES=2)
+
+#サンプリング
+rstan_options(auto_write=TRUE)
+options(mc.cores = parallel::detectCores())
+hmcIter = 1000
+hmcChains = 4
+hmcWarmup = 300
+hmcThin = 2
+
+fit5000 <- sampling(lbaModel, 
+            seed = 1234, 
+            data = stanData5000,
+            warmup = hmcWarmup, 
+            iter = hmcIter,
+            chains = hmcChains,
+            thin =hmcThin)
+extractFit5000 <- rstan::extract(fit2)
+```
+
+
+A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1でデータを作っています。
+```{r, message=FALSE, warning=FALSE}
+posterior5000 <- as.matrix(fit)
+kMap <- mapEstimate(extractFit5000$k)
+AMap <- mapEstimate(extractFit5000$A)
+tauMap <- mapEstimate(extractFit5000$tau)
+v1Map <- mapEstimate(extractFit5000$v[,1])
+v2Map <- mapEstimate(extractFit5000$v[,2])
+
+print(fit5000,par = c("k", "A", "tau", "v[1]", "v[2]","s"))
+# MAP推定値
+print(paste("k=",kMap,",A=",AMap,",tau=",tauMap,",v1=",v1Map,",v2=",v2Map))
+
+mcmc_areas(posterior5000, pars = c("k", "A", "tau", "v[1]", "v[2]"), prob = 0.95)
+```
+
 
 ここまで出来たら，複数の参加者のデータに対して階層ベイズにもっていきたいところですが，ちょっと分量が長くなりすぎてしまったので，またの機会に！  
 
