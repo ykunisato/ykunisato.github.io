@@ -721,7 +721,7 @@ loo::waic(extractFit$log_lik)$waic/(2*trialLength)
 
 ```{r, message=FALSE, warning=FALSE}
 #データセットの作成
-set.seed(1234)
+set.seed(12345)
 data5000 <- rLBA(5000, A=0.5, b=1, t0 = 0.5, mean_v=c(2, 1.5), sd_v=c(1,1))
 trialLength5000 = length(data5000$rt)
 stanData5000 <- list(rt=data5000$rt,res=data5000$response,LENGTH=trialLength5000,NUM_CHOICES=2)
@@ -741,13 +741,13 @@ fit5000 <- sampling(lbaModel,
             iter = hmcIter,
             chains = hmcChains,
             thin =hmcThin)
-extractFit5000 <- rstan::extract(fit2)
+extractFit5000 <- rstan::extract(fit5000)
 ```
 
 
 A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1でデータを作っています。
 ```{r, message=FALSE, warning=FALSE}
-posterior5000 <- as.matrix(fit)
+posterior5000 <- as.matrix(fit5000)
 kMap <- mapEstimate(extractFit5000$k)
 AMap <- mapEstimate(extractFit5000$A)
 tauMap <- mapEstimate(extractFit5000$tau)
