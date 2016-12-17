@@ -1,25 +1,49 @@
 ---
-title: "Rでグラフィカルモデル"
+title: "DiagrammeRでグラフィカルモデル"
 author: "Yoshihiko Kunisato"
 date: "`r format(Sys.time(), '%Y/%m/%d')`"
 output:
   html_document:
     md_extensions: -ascii_identifiers
     number_sections: yes
-    theme: paper
+    theme: default
     toc: yes
     toc_float: yes
 ---
 
-# preview版のRstudioでMarkdownがStanに対応！
+# DiagrammeRでグラフィカルモデル
 
-Markdownにstanコードを直書きして，チャンクの部分{stan output.var="モデル名"}ってやって実行する。すると，Stanコードがコンパイルされて，指定したモデル名で保存される。あとはサンプリングだけでよろし。詳しくは，[@kazutanの資料](http://qiita.com/kazutan/items/6cc162bc3c4b1b9062f2)を参照。
+ベイズ統計モデリングを行っていると段々とモデルが複雑になってきます。特に，ベイジアン認知モデリングなどは，モデルの階層性が高くなりがちです。こういう時，数式だけでなく，グラフィカルモデルをうまく使えると便利です。グラフィカルモデルとは，
 
-# Rでグラフィカルモデル（保存版）
-## 使用パッケージ
+
+
+
 ```{r,message=FALSE}
 library(DiagrammeR)
 ```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+grViz("
+  digraph dot {
+    graph [compound = true, nodesep = .5, ranksep = .25,
+           color = black, label='Fig2.1 in Bayesian Cognitive Modeling: A practical Course']
+
+      node [shape = circle,style = filled,fillcolor = white,color = black,label = '&theta;'] theta
+      node [shape = square,style = filled,fillcolor = white,color = black,label = 'k'] k
+      node [shape = square,style = filled,fillcolor = grey,color = black,label = 'n'] n
+    
+      edge [color = black]
+        theta -> k
+        n -> k
+    }",engine = "dot")
+```
+
+
+## 使用パッケージ
+
+
+
+
 
 ##　DiagrammeRのgrVizでグラフィカルモデル
 
