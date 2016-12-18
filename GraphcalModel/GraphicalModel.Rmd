@@ -26,7 +26,7 @@ library(DiagrammeR)
 grViz("
   digraph dot {
     graph [compound = true, nodesep = .5, ranksep = .25,
-           color = black, label='Fig2.1 in Bayesian Cognitive Modeling: A practical Course']
+           color = black, label='Example 1']
 
       node [shape = circle,style = filled,fillcolor = white,color = black,label = '&theta;'] theta
       node [shape = square,style = filled,fillcolor = white,color = black,label = 'k'] k
@@ -42,7 +42,21 @@ grViz("
 ## 使用パッケージ
 
 
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+grViz("
+  digraph dot {
+    graph [compound = true, nodesep = .5, ranksep = .25,
+           color = black, label='Fig2.1 in Bayesian Cognitive Modeling: A practical Course']
 
+      node [shape = circle,style = filled,fillcolor = white,color = black,label = '&theta;'] theta
+      node [shape = square,style = filled,fillcolor = white,color = black,label = 'k'] k
+      node [shape = square,style = filled,fillcolor = grey,color = black,label = 'n'] n
+    
+      edge [color = black]
+        theta -> k
+        n -> k
+    }",engine = "dot")
+```
 
 
 ##　DiagrammeRのgrVizでグラフィカルモデル
