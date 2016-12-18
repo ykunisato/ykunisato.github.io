@@ -633,7 +633,7 @@ v1Map <- mapEstimate(extractFit$v[,1])
 v2Map <- mapEstimate(extractFit$v[,2])
 ```
 
-A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1で，データを作ったので，おおよそパラメータリカバリーできているかな。
+A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1で，データを作っていました。データの生成の段階でもノイズが入るので，まあまあパラメータリカバリできているかなとは思いますが，データ生成などのシードを変えるだけでも結構結果は変わってきます。
 
 ```{r, message=FALSE, warning=FALSE}
 print(fit,par = c("k", "A", "tau", "v[1]", "v[2]","s"))
@@ -667,7 +667,7 @@ sampleId<-sample(nrow(postPredData),500)
 postPredData2<-postPredData[sampleId,]
 ```
 
-クロス集計で確認をします。まあまあ，良い感じ？
+クロス集計で確認をします。まあまあ，良い感じかな。
 
 ```{r, message=FALSE, warning=FALSE}
 table(data$response)
@@ -675,7 +675,7 @@ table(postPredData1$predRes)
 table(postPredData2$predRes)
 ```
 
-反応時間のヒストグラムも良い感じ？
+反応時間のヒストグラムも良い感じかな。
 
 ### 反応時間の分布（データ）
 
@@ -714,17 +714,18 @@ subplot(p5,p6)
 loo::loo(extractFit$log_lik)$looic/(2*trialLength)
 loo::waic(extractFit$log_lik)$waic/(2*trialLength)
 ```
-# 以降作成中
 
-## データ数を増やしてパラメータリカバリーをしてみる
+## おまけ：データ数を増やしてパラメータリカバリ
+
+上述の500試行のデータでは，パラメータリカバリはまあまあの結果でした。そこで，試行数を10000試行に増やして検討してみました。10000試行も実験とかできないので，あくまでパラメータリカバリの検討のためのものです。
 
 
 ```{r, message=FALSE, warning=FALSE}
 #データセットの作成
-set.seed(12345)
-data5000 <- rLBA(5000, A=0.5, b=1, t0 = 0.5, mean_v=c(2, 1.5), sd_v=c(1,1))
-trialLength5000 = length(data5000$rt)
-stanData5000 <- list(rt=data5000$rt,res=data5000$response,LENGTH=trialLength5000,NUM_CHOICES=2)
+set.seed(1234)
+data10000 <- rLBA(10000, A=0.5, b=1, t0 = 0.5, mean_v=c(2, 1.5), sd_v=c(1,1))
+trialLength10000 = length(data10000$rt)
+stanData10000 <- list(rt=data10000$rt,res=data10000$response,LENGTH=trialLength10000,NUM_CHOICES=2)
 
 #サンプリング
 rstan_options(auto_write=TRUE)
@@ -734,31 +735,31 @@ hmcChains = 4
 hmcWarmup = 300
 hmcThin = 2
 
-fit5000 <- sampling(lbaModel, 
+fit10000 <- sampling(lbaModel, 
             seed = 1234, 
-            data = stanData5000,
+            data = stanData10000,
             warmup = hmcWarmup, 
             iter = hmcIter,
             chains = hmcChains,
             thin =hmcThin)
-extractFit5000 <- rstan::extract(fit5000)
+extractFit10000 <- rstan::extract(fit10000)
 ```
 
 
-A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1でデータを作っています。
+A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1でデータを作っています。500よりは，うまくできているかな？
 ```{r, message=FALSE, warning=FALSE}
-posterior5000 <- as.matrix(fit5000)
-kMap <- mapEstimate(extractFit5000$k)
-AMap <- mapEstimate(extractFit5000$A)
-tauMap <- mapEstimate(extractFit5000$tau)
-v1Map <- mapEstimate(extractFit5000$v[,1])
-v2Map <- mapEstimate(extractFit5000$v[,2])
+posterior10000 <- as.matrix(fit10000)
+kMap <- mapEstimate(extractFit10000$k)
+AMap <- mapEstimate(extractFit10000$A)
+tauMap <- mapEstimate(extractFit10000$tau)
+v1Map <- mapEstimate(extractFit10000$v[,1])
+v2Map <- mapEstimate(extractFit10000$v[,2])
 
-print(fit5000,par = c("k", "A", "tau", "v[1]", "v[2]","s"))
+print(fit10000,par = c("k", "A", "tau", "v[1]", "v[2]","s"))
 # MAP推定値
 print(paste("k=",kMap,",A=",AMap,",tau=",tauMap,",v1=",v1Map,",v2=",v2Map))
 
-mcmc_areas(posterior5000, pars = c("k", "A", "tau", "v[1]", "v[2]"), prob = 0.95)
+mcmc_areas(posterior10000, pars = c("k", "A", "tau", "v[1]", "v[2]"), prob = 0.95)
 ```
 
 
