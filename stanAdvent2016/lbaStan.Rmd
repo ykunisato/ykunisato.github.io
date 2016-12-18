@@ -49,7 +49,7 @@ Linear Ballistic Accumulator modelでは，複数選択肢の反応時間の解�
 
 # StanでLinear Ballistic Accumulator modelを使うためのユーザー定義関数の設定
 
-それでは，StanででLinear Ballistic Accumulator modelを使ってみたいのですが，2016年12月の時点では，StanにでLinear Ballistic Accumulator modelにおける対数尤度を計算する関数は存在しません。そこで，functionsブロックで，ユーザー定義関数を設定する必要があります。今回は，Annisらの[Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)で紹介されていた関数を改変して使います。AnnisらのStanコードは，[AnnisのHP](http://www.vanderbilt.edu/psychological_sciences/bio/jeff-annis)にて配布されています。AnnisらのStanコードに対する主な改変点は，(1)Annisらのコードをstan2.10以降の記法に対応（<-を=に変更，_logを_lpdfに変更など），(2)Annisらのコードは，個々の試行の対数尤度を計算してなかったので，試行ごとの対数尤度を計算できるような修正の２点なります。以下では，Annisらのコードを改変したものについて説明をしていきます。
+それでは，StanでLinear Ballistic Accumulator modelを使ってみたいのですが，2016年12月の時点では，StanにでLinear Ballistic Accumulator modelにおける対数尤度を計算する関数は存在しません。そこで，functionsブロックで，ユーザー定義関数を設定する必要があります。今回は，Annisらの[Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)で紹介されていた関数を改変して使います。AnnisらのStanコードは，[AnnisのHP](http://www.vanderbilt.edu/psychological_sciences/bio/jeff-annis)にて配布されています。AnnisらのStanコードに対する主な改変点は，(1)Annisらのコードをstan2.10以降の記法に対応（<-を=に変更，_logを_lpdfに変更など），(2)Annisらのコードは，個々の試行の対数尤度を計算してなかったので，試行ごとの対数尤度を計算できるような修正の２点なります。以下では，Annisらのコードを改変したものについて説明をしていきます。
 
 ## 特定のaccumulatorの確率密度関数(lba_pdf)
 
@@ -714,54 +714,6 @@ subplot(p5,p6)
 loo::loo(extractFit$log_lik)$looic/(2*trialLength)
 loo::waic(extractFit$log_lik)$waic/(2*trialLength)
 ```
-
-## おまけ：データ数を増やしてパラメータリカバリ
-
-上述の500試行のデータでは，パラメータリカバリはまあまあの結果でした。そこで，試行数を10000試行に増やして検討してみました。10000試行も実験とかできないので，あくまでパラメータリカバリの検討のためのものです。
-
-
-```{r, message=FALSE, warning=FALSE}
-#データセットの作成
-set.seed(1234)
-data10000 <- rLBA(10000, A=0.5, b=1, t0 = 0.5, mean_v=c(2, 1.5), sd_v=c(1,1))
-trialLength10000 = length(data10000$rt)
-stanData10000 <- list(rt=data10000$rt,res=data10000$response,LENGTH=trialLength10000,NUM_CHOICES=2)
-
-#サンプリング
-rstan_options(auto_write=TRUE)
-options(mc.cores = parallel::detectCores())
-hmcIter = 1000
-hmcChains = 4
-hmcWarmup = 300
-hmcThin = 2
-
-fit10000 <- sampling(lbaModel, 
-            seed = 1234, 
-            data = stanData10000,
-            warmup = hmcWarmup, 
-            iter = hmcIter,
-            chains = hmcChains,
-            thin =hmcThin)
-extractFit10000 <- rstan::extract(fit10000)
-```
-
-
-A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1でデータを作っています。500よりは，うまくできているかな？
-```{r, message=FALSE, warning=FALSE}
-posterior10000 <- as.matrix(fit10000)
-kMap <- mapEstimate(extractFit10000$k)
-AMap <- mapEstimate(extractFit10000$A)
-tauMap <- mapEstimate(extractFit10000$tau)
-v1Map <- mapEstimate(extractFit10000$v[,1])
-v2Map <- mapEstimate(extractFit10000$v[,2])
-
-print(fit10000,par = c("k", "A", "tau", "v[1]", "v[2]","s"))
-# MAP推定値
-print(paste("k=",kMap,",A=",AMap,",tau=",tauMap,",v1=",v1Map,",v2=",v2Map))
-
-mcmc_areas(posterior10000, pars = c("k", "A", "tau", "v[1]", "v[2]"), prob = 0.95)
-```
-
 
 ここまで出来たら，複数の参加者のデータに対して階層ベイズにもっていきたいところですが，ちょっと分量が長くなりすぎてしまったので，またの機会に！  
 
