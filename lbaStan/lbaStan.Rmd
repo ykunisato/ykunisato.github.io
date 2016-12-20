@@ -3,8 +3,6 @@ title: "RStanによる反応時間の解析：Linear Ballistic Accumulator model
 author: "専修大学人間科学部心理学科　国里愛彦"
 date: "2016年12月22日"
 output:
-  pdf_document:
-    toc: yes
   html_document:
     md_extensions: -ascii_identifiers
     number_sections: yes
@@ -304,7 +302,7 @@ k \sim Normal(.5,1)T[0,]\\
 A \sim Normal(.5,1)T[0,]\\
 \tau \sim Normal(.5,.5)T[0,]\\
 v[1],v[2] \sim Normal(2,1)T[0,]\\
-S = 1 \hspace{30pt}※Sは定数
+S = 1 \hspace{30pt}
 $$
 
 
