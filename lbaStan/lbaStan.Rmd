@@ -3,6 +3,8 @@ title: "RStanによる反応時間の解析：Linear Ballistic Accumulator model
 author: "専修大学人間科学部心理学科　国里愛彦"
 date: "2016年12月22日"
 output:
+  pdf_document:
+    toc: yes
   html_document:
     md_extensions: -ascii_identifiers
     number_sections: yes
