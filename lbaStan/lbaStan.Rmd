@@ -12,54 +12,54 @@ output:
 ---
 
 
-本資料は，[Stan Advent Calendar 2016](http://qiita.com/advent-calendar/2016/stan)に向けて作成した資料です。Linear Ballistic Accumulator modelを用いた反応時間の解析について解説しています。Annis et al. (2016)による [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)を紹介しつつ，以下の２点を目的としています。
+　本資料は，[Stan Advent Calendar 2016](http://qiita.com/advent-calendar/2016/stan)に向けて作成した資料です。Annis et al. (2016)による [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)の内容やコードを紹介しつつ，Linear Ballistic Accumulator modelを用いた反応時間の解析について解説します。本資料の目的は以下の２点になります。
 
-1. Linear Ballistic Accumulator modelを用いた反応時間の解析を理解する
+1. Linear Ballistic Accumulator modelを用いた反応時間の解析法を理解する
 1. Stanでユーザー定義関数を用いる方法を理解する
 
-ちなみ，2016年12月現在，Rstanがggplot2の最新版に対応できてない関係でrstanのtraceplot()が使えなかったので，bayesplotパッケージを使ってみました。これが便利だったので，これの紹介も途中から副次的な目的に追加しました。
+＊ちなみ，2016年12月現在，Rstanがggplot2の最新版に対応できておらず，rstanのtraceplot()が使えなかったので，bayesplotパッケージを使ってみました。これが便利だったので，これの紹介も途中から副次的な目的に追加しています。
 
 
 # Linear Ballistic Accumulator modelについて
 ## 反応時間の解析とは？
 
-心理学や神経科学などにおいて，人や動物の行動を対象とした場合、何か刺激を提示してから反応するまでにかかる反応時間を解析することが結構多いです。以下の図のように，二重丸が出てきたらボタンを押すという実験があったとします。この二重丸の提示からボタン押しまでにかかる時間を解析するのが反応時間の解析です。実際は，提示する刺激の性質を変化させたり，反応のルールを操作することで，反応時間に違いが生じるかを調べることが多いです。詳細は，脳科学辞典の[反応時間](https://bsd.neuroinf.jp/wiki/%E5%8F%8D%E5%BF%9C%E6%99%82%E9%96%93)を参照ください。
+　心理学や神経科学などにおいて，何か刺激を提示してから反応するまでにかかる反応時間を解析することが結構多いです。以下の図のように，二重丸が出てきたらボタンを押すという実験があったとします。この二重丸の提示からボタン押しまでにかかる時間を解析するのが反応時間の解析です。実際は，提示する刺激の性質を変化させたり，反応のルールを操作することで，反応時間に違いが生じるかを調べることが多いです。詳細は，脳科学辞典の[反応時間](https://bsd.neuroinf.jp/wiki/%E5%8F%8D%E5%BF%9C%E6%99%82%E9%96%93)を参照ください。
 
 ![](fig1.png) 
 
 ## 従来の反応時間の解析とLinear Ballistic Accumulator model
 
-従来の反応時間の解析では，群間or条件間の平均値の差をt検定や分散分析で検定するということが多かったように思います。そして，統計学的に有意な平均値の差をもって，実験的な刺激の操作や群の違いが反応時間に反映されていると考えます。しかし，反応時間というものをよく考えると，その中にはいろいろな成分が入っています。下の図を見てください。私達が刺激が出てから反応するまでに，(1)刺激の読み込み，(2)判断，(3)ボタンを押す動作の３つがあるかと思います。そのうち多くの研究者が関心をもつのは，「判断」の部分になります。そのため，「刺激の読み込み」と「ボタンを押す動作」のような無判断時間（Non Decision Time）と判断にかかる時間（Decision Time）に分けて考えるほうが自然かと思います。このような反応時間の生成についてのモデルとして，逐次サンプリングモデルがあり，その１つにLinear Ballistic Accumulator modelがあります。逐次サンプリングモデルの代表的なモデルとしては，Drift-Diffusion modelもありますが，今回は，よりシンプルなLinear Ballistic Accumulator modelを取り上げます。Linear Ballistic Accumulator modelは，Brown & Heathcote(2008)による[The simplest complete model of choice response time: Linear ballistic accumulation](https://www.ncbi.nlm.nih.gov/pubmed/18243170)で提案されたモデルになります（数理モデルの導出は，この論文のAppendixを参照ください）。
+　従来の反応時間の解析では，群間or条件間の平均値の差をt検定や分散分析で検定するということが多かったように思います。そして，統計学的に有意な平均値の差をもって，実験的な刺激の操作や群の違いが反応時間に反映されていると考えます。しかし，反応時間というものをよく考えると，その中にはいろいろな成分が入っています。下の図を見てください。私達が刺激が出てから反応するまでに，(1)刺激の読み込み，(2)判断，(3)ボタンを押す動作の３つがあるかと思います。そのうち多くの研究者が関心をもつのは，「判断」の部分になります。そのため，「刺激の読み込み」と「ボタンを押す動作」のような無判断時間（Non Decision Time）と判断にかかる時間（Decision Time）に分けて考えるほうが自然かと思います。このような反応時間の生成についてのモデルとして，逐次サンプリングモデルがあり，その１つにLinear Ballistic Accumulator modelがあります。逐次サンプリングモデルの代表的なモデルとしては，Drift-Diffusion modelもありますが，今回は，よりシンプルなLinear Ballistic Accumulator modelを取り上げます。Linear Ballistic Accumulator modelは，Brown & Heathcote(2008)による[The simplest complete model of choice response time: Linear ballistic accumulation](https://www.ncbi.nlm.nih.gov/pubmed/18243170)で提案されたモデルになります（数理モデルの導出は，この論文のAppendixを参照ください）。
 
 ![](fig2.png) 
 
 ## Linear Ballistic Accumulator modelにおけるDecision Timeの中身
 
-さて，関心のあるDecision Timeの中身をみていきます（下の図では，Non Decision Timeを左側にまとめています）。Linear Ballistic Accumulator modelでは，私たちは判断を下すまでに徐々にその選択をする上でのエビデンスを蓄積し，それが閾値まで溜まったら，判断を下すと考えます（下図の右上の部分）。Drift-Diffusion modelの場合は，この蓄積過程にランダムウォーク的な要素が入りますが，Linear Ballistic Accumulator modelは，まさに，線形な弾道を描いてエビデンスを蓄積していきます。
+　さて，関心のあるDecision Timeの中身をみていきます（下の図では，Non Decision Timeを左側にまとめています）。Linear Ballistic Accumulator modelでは，私たちは判断を下すまでに徐々にその選択をする上でのエビデンスを蓄積し，それが閾値まで溜まったら，判断を下すと考えます（下図の右上の部分）。Drift-Diffusion modelの場合は，この蓄積過程にランダムウォーク的な要素が入りますが，Linear Ballistic Accumulator modelは，まさに，線形な弾道を描いてエビデンスを蓄積していきます。
 
-Linear Ballistic Accumulator modelの前提として，反応時間は，エビデンスの蓄積が閾値(b)まで達した時になされます。その際の，エビデンスの蓄積率は，ドリフト率(d)と呼びます。各試行のドリフト率(d)は，平均v，標準偏差sの正規分布に従います。また，各試行の開始点(a)は，0からA(開始点の上限)の一様分布に従います。そして，Decision Timeは，(b-a)/dで求めることができます。Non  decision Time(τ)は，全試行で一定と考えます。aとdは，推定するパラメータではなく，v, b, A, s, τ が推定するパラメータになります（sは，今回は１で固定している）。今回，閾値(b)は直接計算せず，b=k+Aと考えて，相対閾値(relative threshold: k)を推定しています。
+　Linear Ballistic Accumulator modelの前提として，反応時間は，エビデンスの蓄積が閾値(b)まで達した時になされます。その際の，エビデンスの蓄積率は，ドリフト率(d)と呼びます。各試行のドリフト率(d)は，平均v，標準偏差sの正規分布に従います。また，各試行の開始点(a)は，0からA(開始点の上限)の一様分布に従います。そして，Decision Timeは，(b-a)/dで求めることができます。Non  decision Time(τ)は，全試行で一定と考えます。aとdは，推定するパラメータではなく，v, b, A, s, τ が推定するパラメータになります（sは，今回は１で固定している）。今回，閾値(b)は直接計算せず，b=k+Aと考えて，相対閾値(relative threshold: k)を推定しています。
 
 ![](fig3.png) 
 
 ## Linear Ballistic Accumulator modelにおける複数選択肢の扱い
 
-Linear Ballistic Accumulator modelでは，複数選択肢の反応時間の解析ができます（Drift-Diffusion modelの場合は，２選択肢に限定されます）。さきほど説明をしましたが，Linear Ballistic Accumulator modelでは，閾値までエビデンスが蓄積されたときに，反応が出力されるという前提があります。選択肢が複数ある場合，最も最初に閾値(b)に到達した選択肢の反応が出力されます（下図の場合，選択肢１の方が，選択肢２よりも先に閾値に到達しているので選択肢１が反応として出力されます）。なお，Linear Ballistic Accumulator modelでは，Decision Timeでエビデンスを蓄積するものをaccumulatorと呼びます（選択肢と言っても良いのですが，エビデンスの蓄積過程を明示的に扱っている感じなのかと思います）。
+　Linear Ballistic Accumulator modelでは，複数選択肢の反応時間の解析ができます（Drift-Diffusion modelの場合は，２選択肢に限定されます）。さきほど説明をしましたが，Linear Ballistic Accumulator modelでは，閾値までエビデンスが蓄積されたときに，反応が出力されるという前提があります。選択肢が複数ある場合，最も最初に閾値(b)に到達した選択肢の反応が出力されます（下図の場合，選択肢１の方が，選択肢２よりも先に閾値に到達しているので選択肢１が反応として出力されます）。なお，Linear Ballistic Accumulator modelでは，Decision Timeでエビデンスを蓄積するものをaccumulatorと呼びます（選択肢と言っても良いのですが，エビデンスの蓄積過程を明示的に扱っている感じなのかと思います）。
 
 ![](fig4.png) 
 
 # StanでLinear Ballistic Accumulator modelを使うためのユーザー定義関数の設定
 
-それでは，StanでLinear Ballistic Accumulator modelを使ってみたいのですが，2016年12月の時点では，StanにでLinear Ballistic Accumulator modelにおける対数尤度を計算する関数は存在しません。そこで，functionsブロックで，ユーザー定義関数を設定する必要があります。今回は，Annisらの[Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)で紹介されていた関数を改変して使います。AnnisらのStanコードは，[AnnisのHP](http://www.vanderbilt.edu/psychological_sciences/bio/jeff-annis)にて配布されています。AnnisらのStanコードに対する主な改変点は，(1)Annisらのコードをstan2.10以降の記法に対応（<-を=に変更，_logを_lpdfに変更など），(2)Annisらのコードは，個々の試行の対数尤度を計算してなかったので，試行ごとの対数尤度を計算できるような修正の２点なります。以下では，Annisらのコードを改変したものについて説明をしていきます。
+　それでは，StanでLinear Ballistic Accumulator modelを使ってみたいのですが，2016年12月の時点では，StanにでLinear Ballistic Accumulator modelにおける対数尤度を計算する関数は存在しません。そこで，functionsブロックで，ユーザー定義関数を設定する必要があります。今回は，Annisらの[Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)で紹介されていた関数を改変して使います。AnnisらのStanコードは，[AnnisのHP](http://www.vanderbilt.edu/psychological_sciences/bio/jeff-annis)にて配布されています。AnnisらのStanコードに対する主な改変点は，(1)Annisらのコードをstan2.10以降の記法に対応（<-を=に変更，_logを_lpdfに変更など），(2)Annisらのコードは，個々の試行の対数尤度を計算してなかったので，試行ごとの対数尤度を計算できるような修正の２点なります。以下では，Annisらのコードを改変したものについて説明をしていきます。
 
 ## 特定のaccumulatorの確率密度関数(lba_pdf)
 
-まず，特定のaccumulatorの確率密度関数(Probability density function)を計算する関数を説明します。特定のaccumulatorの確率密度関数は，以下の数式で計算されます(Brown & Heathcote, 2008)。
+　まず，特定のaccumulatorの確率密度関数(Probability density function)を計算する関数を説明します。特定のaccumulatorの確率密度関数は，以下の数式で計算されます(Brown & Heathcote, 2008)。
 
 $$
 f_i (t) = \frac{1}{A} [-v_i Φ(\frac{b-A-tv_i}{ts})+sϕ(\frac{b-A-tv_i}{ts})+v_i Φ(\frac{b-tv_i}{ts})-sϕ(\frac{b-tv_i}{ts})]
 $$
 
-これをStanコードに落とし込むと，以下のlba_pdfになります。引数は，t，b，A, v_PDF, sになり(v_pdfは，vのことです)，確率密度関数を返します。以下のlba_pdfは Annisらのコードを，Stan2.10以上の記法に修正しただけのものです。
+　これをStanコードに落とし込むと，以下のlba_pdfになります。引数は，t，b，A, v_PDF, sになり(v_pdfは，vのことです)，確率密度関数を返します。以下のlba_pdfは Annisらのコードを，Stan2.10以上の記法に修正しただけのものです。
 
 ```{stan,eval=FALSE,output.var="hoge"}
 real lba_pdf(real t, real b, real A, real v_pdf, real s){
@@ -86,13 +86,13 @@ real lba_pdf(real t, real b, real A, real v_pdf, real s){
 
 ## 特定のaccumulatorの累積密度関数(lba_cdf)
 
-次に特定のaccumulatorの累積密度関数(Cumulative Density Function)を計算する関数を説明します。特定のaccumulatorの累積密度関数は，以下の数式で計算されますす(Brown & Heathcote, 2008)。
+　次に特定のaccumulatorの累積密度関数(Cumulative Density Function)を計算する関数を説明します。特定のaccumulatorの累積密度関数は，以下の数式で計算されますす(Brown & Heathcote, 2008)。
 
 $$
 F_i (t)=1+\frac{b-A-tv_i}{A} Φ(\frac{b-A-tv_i}{ts})-\frac{b-tv_i}{A}Φ\frac{b-tv_i}{ts}+\frac{ts}{A}ϕ(\frac{b-A-tv_i}{ts})-\frac{ts}{A}ϕ(\frac{b-tv_i}{ts})
 $$
 
-これをStanコードに落とし込むと，以下のlba_cdfになります。引数は，t，b，A, v_cdf, sになり(v_cdfは，vのことです)，累積密度関数を返します。以下のlba_cdfは，Annisらのコードを，Stan2.10以上の記法に修正しただけのものです。
+　これをStanコードに落とし込むと，以下のlba_cdfになります。引数は，t，b，A, v_cdf, sになり(v_cdfは，vのことです)，累積密度関数を返します。以下のlba_cdfは，Annisらのコードを，Stan2.10以上の記法に修正しただけのものです。
 
 ```{stan,eval=FALSE,output.var="hoge"}
 real lba_cdf(real t, real b, real A, real v_cdf, real s){
@@ -121,13 +121,13 @@ real lba_cdf(real t, real b, real A, real v_cdf, real s){
 
 ## 特定のaccumulatorが最初に閾値に到達する確率密度関数についての対数尤度関数(lba_lpdf)
 
-上で定義した，lba_cdfとlba_pdfは，時間tにおいて，i番目のaccumulatorが閾値に到達した確率密度や累積密度を算出するものです。これら２つを用いて，複数のaccumulatorがある状況で，どのaccumulatorが最初に閾値に到達するのかに関する確率密度関数を算出するのが以下の数式になります。以下の数式をみると，i番目のaccumulatorが一番最初に閾値に到達する確率密度関数は，accumulator iの確率密度関数と，(1-それ以外のaccumulatorの累積密度関数)の総積をかけたものになります。ざっくり説明すると，選択肢(accumulator)iを時間tに選ぶ確率と他の選択肢(accumulator)の累積確率の残りの総積を掛け合わせています。つまり，選択肢iで閾値にが起こる確率だけでなく，その他の選択肢で反応が起こらない確率も考慮しています。
+　上で定義した，lba_cdfとlba_pdfは，時間tにおいて，i番目のaccumulatorが閾値に到達した確率密度や累積密度を算出するものです。これら２つを用いて，複数のaccumulatorがある状況で，どのaccumulatorが最初に閾値に到達するのかに関する確率密度関数を算出するのが以下の数式になります。以下の数式をみると，i番目のaccumulatorが一番最初に閾値に到達する確率密度関数は，accumulator iの確率密度関数と，(1-それ以外のaccumulatorの累積密度関数)の総積をかけたものになります。ざっくり説明すると，選択肢(accumulator)iを時間tに選ぶ確率と他の選択肢(accumulator)の累積確率の残りの総積を掛け合わせています。つまり，選択肢iで閾値にが起こる確率だけでなく，その他の選択肢で反応が起こらない確率も考慮しています。
 
 $$
 PDF_i (t)=f_i (t)\prod_{j\neq i}(1-F_j (t))
 $$
 
-Annisらは，パラメータと反応時間を用いて，どちらを選択するかの確率密度関数を計算し，その選択確率の対数尤度を計算する関数を作成しています（lba_log）。まず，このlba_logについて，Stan2.10以上の記法に修正したlba_lpdfを作成しました。さらに，Annisらのlba_logでは，対数尤度は個々の反応時間に対して計算されるのではなく，すべての試行の反応時間をまとめた行列に対して計算されます。パラメータの推定では，これで問題は無いように思いますが，WAICなどの計算をした場合に，微妙なのではないかと思いました（私の理解では，個々のデータについて対数尤度を計算する必要があるように思います）。そこで，条件などでひとまとまりになった反応時間ではなく，個々の反応時間について対数尤度を計算できるように改変をおこなっています。
+　Annisらは，パラメータと反応時間を用いて，どちらを選択するかの確率密度関数を計算し，その選択確率の対数尤度を計算する関数を作成しています（lba_log）。まず，このlba_logについて，Stan2.10以上の記法に修正したlba_lpdfを作成しました。さらに，Annisらのlba_logでは，対数尤度は個々の反応時間に対して計算されるのではなく，すべての試行の反応時間をまとめた行列に対して計算されます。パラメータの推定では，これで問題は無いように思いますが，WAICなどの計算をした場合に，微妙なのではないかと思いました（私の理解では，個々のデータについて対数尤度を計算する必要があるように思います）。そこで，条件などでひとまとまりになった反応時間ではなく，個々の反応時間について対数尤度を計算できるように改変をおこなっています。
 
 ```{stan,eval=FALSE,output.var="hoge"}
 real lba_lpdf(real rt, real res, real k, real A, vector v, real s, real tau){
@@ -173,7 +173,7 @@ real lba_lpdf(real rt, real res, real k, real A, vector v, real s, real tau){
 
 ## Linear Ballistic Accumulator modelのrng関数
 
-lba_rngは，Linear Ballistic Accumulator modelに基づいて，反応時間と反応を生成する乱数発生関数です。出力はpredであり，pred[1]が反応時間，pred[2]が反応です。以下のlba_rngは，Annisらのコードを，Stan2.10以上の記法に修正しただけのものです。
+　lba_rngは，Linear Ballistic Accumulator modelに基づいて，反応時間と反応を生成する乱数発生関数です。出力はpredであり，pred[1]が反応時間，pred[2]が反応です。以下のlba_rngは，Annisらのコードを，Stan2.10以上の記法に修正しただけのものです。
 
 ```{stan,eval=FALSE,output.var="hoge"}
 vector lba_rng(real k, real A, vector v, real s, real psi){
@@ -243,11 +243,11 @@ vector lba_rng(real k, real A, vector v, real s, real psi){
 
 # RStanによるLinear Ballistic Accumulator modelを用いた解析
 
-ユーザー定義関数が作成できましたので，いよいよ，Rstanを使って解析をしていきましょう！
+　ユーザー定義関数が作成できましたので，いよいよ，Rstanを使って解析をしていきましょう！
 
 ## 使用パッケージ
 
-今回は，以下のパッケージを用います。
+　今回は，以下のパッケージを用います。
 
 ```{r, message=FALSE, warning=FALSE}
 # グラフィカルモデル用
@@ -265,7 +265,7 @@ library(rtdists)
 
 ## グラフィカルモデル
 
-DiagrammeRのgrVizを使って，グラフィカルモデルを描いてみました。むしろ面倒ではないかという気もしますが(例えば，sとLBAの間のエッジはそのままだと隣のノードと重なるので，tailportとかheadportとのか設定を追加しています)，慣れれば多分便利です。多分。
+　DiagrammeRのgrVizを使って，グラフィカルモデルを描いてみました。むしろ面倒ではないかという気もしますが(例えば，sとLBAの間のエッジはそのままだと隣のノードと重なるので，tailportとかheadportとのか設定を追加しています)，慣れれば多分便利です。多分。
 
 ```{r}
 grViz("
@@ -296,7 +296,7 @@ grViz("
   }",engine = "dot")
 ```
 
-事前分布はAnnisらを参考に以下にしました。
+　事前分布はAnnisらを参考に以下にしました。
 $$ 
 k \sim Normal(.5,1)T[0,]\\
 A \sim Normal(.5,1)T[0,]\\
@@ -308,7 +308,7 @@ $$
 
 ## データの作成
 
-rtdistsのrLBA関数を用いて，A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1のときの反応時間と反応を500個生成しました。つまり，一人の参加者が500回も反応をしたという想定です（ちょっと多いですね）。作ったデータは，dataに格納し，さらにstanDataにStanで使えるようにリスト形式で保存しています。
+　rtdistsのrLBA関数を用いて，A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1のときの反応時間と反応を500個生成しました。つまり，一人の参加者が500回も反応をしたという想定です（ちょっと多いですね）。作ったデータは，dataに格納し，さらにstanDataにStanで使えるようにリスト形式で保存しています。
 
 ```{r, message=FALSE, warning=FALSE}
 #データセットの作成
@@ -321,13 +321,13 @@ stanData <- list(rt=data$rt,res=data$response,LENGTH=trialLength,NUM_CHOICES=2)
 
 ## データの確認
 
-選択肢ごとの反応数です。
+　選択肢ごとの反応数です。
 
 ```{r, message=FALSE, warning=FALSE}
 table(data$response)
 ```
 
-選択肢ごとの反応時間のヒストグラムです。
+　選択肢ごとの反応時間のヒストグラムです。
 
 ```{r, message=FALSE, warning=FALSE}
 # 選択肢1の反応時間
@@ -342,7 +342,7 @@ subplot(p1, p2)
 
 ## Stanコード
 
-上記で設定したfunctionブロックだけでなく，dataブロック以降も書きました。
+　上記で設定したfunctionブロックだけでなく，dataブロック以降も書きました。
 
 ※なお，以降は，@kazutan氏の[Stan Advent 2016の記事](http://qiita.com/kazutan/items/6cc162bc3c4b1b9062f2)を参考に，R MarkdownにStanコード直書きしてコンパイルする方法をとっています。つまり，チャンクで，{stan output.var="lbaModel"}と指定しています。私のRの利用の仕方からすると，これ便利です。
 
@@ -547,7 +547,7 @@ generated quantities {
 
 ## Rstanによるサンプリング
 
-さてさて，サンプリングしてみます。
+　さてさて，サンプリングしてみます。
 
 ```{r, message=FALSE, warning=FALSE}
 rstan_options(auto_write=TRUE)
@@ -567,7 +567,7 @@ fit <- sampling(lbaModel,
 ```
 
 ## 収束判定{.tabset}
-まあ，収束してそうですね。収束判定には，bayesplotを活用しています。[このページ](https://cran.rstudio.com/web/packages/bayesplot/vignettes/MCMC-diagnostics.html)が参考になりました。なお，定数のSは除外しています。
+　まあ，収束してそうですね。収束判定には，bayesplotを活用しています。[このページ](https://cran.rstudio.com/web/packages/bayesplot/vignettes/MCMC-diagnostics.html)が参考になりました。なお，定数のSは除外しています。
 
 ### トレースプロット
 ```{r, message=FALSE, warning=FALSE}
@@ -602,7 +602,7 @@ mcmc_acf(posterior2, pars = c("k","A","tau","v[1]","v[2]"), lags = 10)
 ```
 
 ## No-U-Turn Samplerの診断{.tabset}
-bayesplotで簡単に描けたので，載っけてみました。
+　bayesplotで簡単に描けたので，載っけてみました。
 
 ### Divergent transitions
 
@@ -633,7 +633,7 @@ v1Map <- mapEstimate(extractFit$v[,1])
 v2Map <- mapEstimate(extractFit$v[,2])
 ```
 
-A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1で，データを作っていました。データの生成の段階でもノイズが入るので，まあまあパラメータリカバリできているかなとは思いますが，データ生成などのシードを変えるだけでも結構結果は変わってきます。
+　A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1で，データを作っていました。データの生成の段階でもノイズが入るので，まあまあパラメータリカバリできているかなとは思いますが，データ生成などのシードを変えるだけでも結構結果は変わってきます。
 
 ```{r, message=FALSE, warning=FALSE}
 print(fit,par = c("k", "A", "tau", "v[1]", "v[2]","s"))
@@ -649,7 +649,7 @@ mcmc_areas(posterior2, pars = c("k", "A", "tau", "v[1]", "v[2]"), prob = 0.95)
 
 ## 事後予測チェック{.tabset}
 
-収束もしていたので，事後予測チェックをしてみます。Stanが吐き出したpredからそれぞれ500サンプルランダムに抽出したデータセットを２つ作ってみました。
+　収束もしていたので，事後予測チェックをしてみます。Stanが吐き出したpredからそれぞれ500サンプルランダムに抽出したデータセットを２つ作ってみました。
 
 ```{r, message=FALSE, warning=FALSE}
 predRt = posterior2[,'pred[1]']
@@ -667,7 +667,7 @@ sampleId<-sample(nrow(postPredData),500)
 postPredData2<-postPredData[sampleId,]
 ```
 
-クロス集計で確認をします。まあまあ，良い感じかな。
+　クロス集計で確認をします。まあまあ，良い感じかな。
 
 ```{r, message=FALSE, warning=FALSE}
 table(data$response)
@@ -675,7 +675,7 @@ table(postPredData1$predRes)
 table(postPredData2$predRes)
 ```
 
-反応時間のヒストグラムも良い感じかな。
+　反応時間のヒストグラムも良い感じかな。
 
 ### 反応時間の分布（データ）
 
@@ -708,14 +708,14 @@ subplot(p5,p6)
 ```
 
 ## 情報量基準(WAICとLOOCV)の算出
-@berobero11氏の[Stan Advent 2016](http://statmodeling.hatenablog.com/entry/comparison-of-LOOCV-and-WAIC)を参考にしつつWAICとLOOCVの算出をしてみた。今回は，あまり意味ないけど，今後モデル比較する場合には，活用できるかなと思います。
+　@berobero11氏の[Stan Advent 2016](http://statmodeling.hatenablog.com/entry/comparison-of-LOOCV-and-WAIC)を参考にしつつWAICとLOOCVの算出をしてみた。今回は，あまり意味ないけど，今後モデル比較する場合には，活用できるかなと思います。
 
 ```{r}
 loo::loo(extractFit$log_lik)$looic/(2*trialLength)
 loo::waic(extractFit$log_lik)$waic/(2*trialLength)
 ```
 
-ここまで出来たら，複数の参加者のデータに対して階層ベイズにもっていきたいところですが，ちょっと分量が長くなりすぎてしまったので，またの機会に！  
+　ここまで出来たら，複数の参加者のデータに対して階層ベイズにもっていきたいところですが，ちょっと分量が長くなりすぎてしまったので，またの機会に！  
 
 
 **Enjoy Stan!**
