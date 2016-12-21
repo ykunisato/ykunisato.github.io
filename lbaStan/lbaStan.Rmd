@@ -5,15 +5,13 @@ date: "2016年12月22日"
 output:
   html_document:
     md_extensions: -ascii_identifiers
-    number_sections: yes
-    theme: default
+    theme: readable
     toc: yes
     toc_float: yes
-  pdf_document:
-    latex_engine: xelatex
 mainfont: Hiragino Kaku Gothic Pro
 ---
 
+# はじめに
 
 　本資料は，[Stan Advent Calendar 2016](http://qiita.com/advent-calendar/2016/stan)に向けて作成した資料です。Annis et al. (2016)による [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)の内容やコードを紹介しつつ，Linear Ballistic Accumulator modelを用いた反応時間の解析について解説します。本資料の目的は以下の２点になります。
 
