@@ -20,126 +20,97 @@ output:
 今回は，以下のパッケージを用います。
 
 ```{r, message=FALSE, warning=FALSE}
-# グラフィカルモデル用
+rm(list=ls())
 library(DiagrammeR)
-# グラフ作成用
 library(ggplot2)
 library(plotly)
 library(bayesplot)
-# Stan用
 library(rstan)
 library(loo)
-# Linear Ballistic Accumulator model用データの生成
 library(rtdists)
+library(msm)
 ```
 
 # 10名分のデータの作成
 
-rtdistsのrLBA関数を用いて，
-
-
-A=0.5, b=1, tau(ここではt0) = 0.5, v[1]=2, v[2]=1.5, s=1のときの反応時間と反応を500個生成しました。
-
-
-作ったデータは，dataに格納し，さらにstanDataにStanで使えるようにリスト形式で保存しています。
+Annis et al. (2016)による [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)のコードを参考にしつつ，10名の参加者が３条件の２選択肢の課題をそれぞれ100試行行ったというデータを作ってみる。まずは，人数分のパラメータを準備します。
 
 ```{r, message=FALSE, warning=FALSE}
-#データセットの作成
-set.seed(1234)
-data <- rLBA(500, A=0.5, b=1, t0 = 0.5, mean_v=c(2, 1.5), sd_v=c(1,1))
-trialLength = length(data$rt)
-stanData <- list(rt=data$rt,res=data$response,LENGTH=trialLength,NUM_CHOICES=2)
-```
+# 参加者数，試行数，条件数
+numberSubject <- 10
+numberTrials <- 100
+numberConditions <- 3
 
-
-
-
-```{r}
-#simulation parameters
-TEST_LENGTH = 100
-NUM_SUBJ = 2
-NUM_COND = 3
-NUM_CHOICES = 2
-
-#mcmc parameters
-model = 'lba_hier.stan'
-warmup = 500
-iter = 1000
-chains = 3
-
-#group-level parameters
+#　ハイパーパラメータの設定
 A_mu = .5
-k_mu = .5
+b_mu = 1
 t0_mu = .5
 v1_mu_c1 = 2
-v2_mu_c1 = 2
-v3_mu_c1 = 2
+v2_mu_c1 = 2.5
 v1_mu_c2 = 3
-v2_mu_c2 = 2
-v3_mu_c2 = 1
-v1_mu_c3 = 4
-v2_mu_c3 = 2
-v3_mu_c3 = 3
+v2_mu_c2 = 3
+v1_mu_c3 = 3.5
+v2_mu_c3 = 2.5
 s = 1
 
-#individual-level parameters
-A = rtnorm(NUM_SUBJ,A_mu,.5,0,Inf)
-k = rtnorm(NUM_SUBJ,k_mu,.5,0,Inf)
-t0 = rtnorm(NUM_SUBJ,t0_mu,.5,0,1)
-v1_c1 = rtnorm(NUM_SUBJ,v1_mu_c1,1,0,Inf)
-v2_c1 = rtnorm(NUM_SUBJ,v2_mu_c1,1,0,Inf)
-v3_c1 = rtnorm(NUM_SUBJ,v3_mu_c1,1,0,Inf)
-v1_c2 = rtnorm(NUM_SUBJ,v1_mu_c2,1,0,Inf)
-v2_c2 = rtnorm(NUM_SUBJ,v2_mu_c2,1,0,Inf)
-v3_c2 = rtnorm(NUM_SUBJ,v3_mu_c2,1,0,Inf)
-v1_c3 = rtnorm(NUM_SUBJ,v1_mu_c3,1,0,Inf)
-v2_c3 = rtnorm(NUM_SUBJ,v2_mu_c3,1,0,Inf)
-v3_c3 = rtnorm(NUM_SUBJ,v3_mu_c3,1,0,Inf)
+#　ハイパーパラメータをもとにした個人のパラメータ（切断正規分布を利用）
+A = rtnorm(numberSubject,A_mu,.5,0,Inf)
+b = rtnorm(numberSubject,b_mu,.5,A,Inf)
+t0 = rtnorm(numberSubject,t0_mu,.5,0,1)
+v1_c1 = rtnorm(numberSubject,v1_mu_c1,1,0,Inf)
+v2_c1 = rtnorm(numberSubject,v2_mu_c1,1,0,Inf)
+v1_c2 = rtnorm(numberSubject,v1_mu_c2,1,0,Inf)
+v2_c2 = rtnorm(numberSubject,v2_mu_c2,1,0,Inf)
+v1_c3 = rtnorm(numberSubject,v1_mu_c3,1,0,Inf)
+v2_c3 = rtnorm(numberSubject,v2_mu_c3,1,0,Inf)
 
-#make simulated data 
-RT = array(NA,dim = c(NUM_SUBJ,NUM_COND,2,TEST_LENGTH))
-for(i in 1:NUM_SUBJ){
-     out1 = rlba(TEST_LENGTH,k[i]+A[i],A[i],c(v1_c1[i],v2_c1[i]),1,t0[i])
-     out2 = rlba(TEST_LENGTH,k[i]+A[i],A[i],c(v1_c2[i],v2_c2[i]),1,t0[i])
-     out3 = rlba(TEST_LENGTH,k[i]+A[i],A[i],c(v1_c3[i],v2_c3[i]),1,t0[i])
-     RT[i,1,1,] = out1$rt
-     RT[i,2,1,] = out2$rt
-     RT[i,3,1,] = out3$rt
-     RT[i,1,2,] = out1$resp
-     RT[i,2,2,] = out2$resp
-     RT[i,3,2,] = out3$resp
+# パラメータとハイパーパラメータのデータフレーム化
+hyperParameters <- data.frame(A_mu,b_mu,t0_mu,v1_mu_c1,v2_mu_c1,v1_mu_c2,v2_mu_c2,v1_mu_c3,v2_mu_c3,s)
+print(hyperParameters)
+parameters <- data.frame(A,b,t0,v1_c1,v2_c1,v1_c2,v2_c2,v1_c3,v2_c3)
+print(parameters)
+```
+上記で設定したパラメータをもとに，rtdistsのrLBA関数を用いて反応時間と反応のデータを作ります。作ったデータは，ロング形式にしました。そして，stanLongDataにStanで使えるようにリスト形式でデータを保存しています。
+
+```{r, message=FALSE, warning=FALSE}
+set.seed(1234)
+longData <- NULL
+for(i in 1:numberSubject){
+    id <- rep(i,numberTrials)
+    # 条件１
+    tempRt <- rLBA(numberTrials, A=parameters$A[i], b=parameters$b[i], t0=parameters$t0[i], mean_v=c(parameters$v1_c1[i],parameters$v2_c1[i]), sd_v=c(s,s))
+    condition <- rep(1,numberTrials)
+    indDataC1 <- data.frame(id,condition,tempRt)
+    
+    # 条件2
+    tempRt <- rLBA(numberTrials, A=parameters$A[i], b=parameters$b[i], t0=parameters$t0[i], mean_v=c(parameters$v1_c1[i],parameters$v2_c1[i]), sd_v=c(s,s))
+    condition <- rep(2,numberTrials)
+    indDataC2 <- data.frame(id,condition,tempRt)
+    
+    # 条件3
+    tempRt <- rLBA(numberTrials, A=parameters$A[i], b=parameters$b[i], t0=parameters$t0[i], mean_v=c(parameters$v1_c1[i],parameters$v2_c1[i]), sd_v=c(s,s))
+    condition <- rep(3,numberTrials)
+    indDataC3 <- data.frame(id,condition,tempRt)
+    indData <- rbind(indDataC1,indDataC2,indDataC3)
+    
+    # ロングデータ
+    longData <- rbind(longData,indData)
 }
 
-#make data list to give to Stan
-data = list(RT=RT, TEST_LENGTH=TEST_LENGTH, NUM_SUBJ=NUM_SUBJ, NUM_COND=NUM_COND, NUM_CHOICES=NUM_CHOICES)
+allTrial <- length(longData)
+# Stan用データの作成
+stanLongData <- list(RT=longData$rt,RES=longData$response,ID=longData$id,CONDITION = longData$condition, TRIAL_LENGTH=numberTrials,NUM_COND=numberConditions,NUM_SUBJ=numberSubject,NUM_CHOICES=2,ALLTRIAL=allTrial,NUM_CHOICES=2)
 ```
-
-
-```{r}
-#run stan model
-fit <- stan(file=model, data = data,iter = iter, chains = chains,warmup=warmup)
-
-#plot chains
-traceplot(fit)
-
-#model summary
-print(fit)
-```
-
-
-
 
 ## データの確認
 
-選択肢ごとの反応数です。
+
+
 
 ```{r, message=FALSE, warning=FALSE}
+
+
 table(data$response)
-```
-
-選択肢ごとの反応時間のヒストグラムです。
-
-```{r, message=FALSE, warning=FALSE}
 # 選択肢1の反応時間
 data1 <- subset(data,data$response==1)
 p1 <- ggplot(data1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
@@ -195,220 +166,26 @@ v[1],v[2] \sim Normal(2,1)T[0,]\\
 S = 1 \hspace{30pt}※Sは定数
 $$
 
+ハイパーパラメータも
+$$ 
+k_{i} \sim Normal(\mu_{k},\sigma_{k})T(0,\infty)\\
+A_{i} \sim Normal(\mu_{A},\sigma_{A})T(0,\infty)\\
+\tau_{i} \sim Normal(\mu_{\tau},\sigma_{\tau})T(0,\infty)\\
+v1_{i} \sim Normal(\mu_{v1},\sigma_{v1})T(0,\infty)\\
+v2_{i} \sim| Normal(\mu_{v2},\sigma_{v2})T(0,\infty)\\
+\mu^{A},\mu^{k} \sim Normal(0.5,1)T(0,\infty)\\
+\mu^{\tau} \sim Normal(0.5,0.5)T(0,\infty)\\
+\mu^{v1},\mu^{v2} \sim Normal(2,1)T(0,\infty)\\
+\sigma^{A},\sigma^{k}, \sigma^{v1},\sigma^{v2},\sigma^{\tau} \sim student_t(4,0,1)T(0,\infty) [Gamma(1,1)から変更]\\ 
+S = 1 [Sは定数]\\
+RT[t, i] \sim LBA(k_{i},A_{i},\tau_{i},v1_{i,j},s) [選択肢１の時]\\
+RT[t, i] \sim LBA(k_{i},A_{i},\tau_{i},v2_{i,j},s) [選択肢2の時]
+$$
 
+### 階層ベイズモデル
+vもAもConditionに対して一定
 
-
-## Stanコード
-
-上記で設定したfunctionブロックだけでなく，dataブロック以降も書きました。
-
-※なお，以降は，@kazutan氏の[Stan Advent 2016の記事](http://qiita.com/kazutan/items/6cc162bc3c4b1b9062f2)を参考に，R MarkdownにStanコード直書きしてコンパイルする方法をとっています。つまり，チャンクで，{stan output.var="lbaModel"}と指定しています。私のRの利用の仕方からすると，これ便利です。
-
-```{stan output.var="lbaModel"}
-functions{
-     
-     real lba_pdf(real t, real b, real A, real v, real s){
-          //PDF of the LBA model
-          
-          real b_A_tv_ts;
-          real b_tv_ts;
-          real term_1;
-          real term_2;
-          real term_3;
-          real term_4;
-          real pdf;
-          
-          b_A_tv_ts = (b - A - t*v)/(t*s);
-          b_tv_ts = (b - t*v)/(t*s);
-          term_1 = v*Phi(b_A_tv_ts);
-          term_2 = s*exp(normal_lpdf(b_A_tv_ts|0,1)); 
-          term_3 = v*Phi(b_tv_ts);
-          term_4 = s*exp(normal_lpdf(b_tv_ts|0,1)); 
-          pdf = (1/A)*(-term_1 + term_2 + term_3 - term_4);
-          
-          return pdf;
-     }
-     
-     real lba_cdf(real t, real b, real A, real v, real s){
-          //CDF of the LBA model
-          
-          real b_A_tv;
-          real b_tv;
-          real ts;
-          real term_1;
-          real term_2;
-          real term_3;
-          real term_4;
-          real cdf;	
-          
-          b_A_tv = b - A - t*v;
-          b_tv = b - t*v;
-          ts = t*s;
-          term_1 = b_A_tv/A * Phi(b_A_tv/ts);	
-          term_2 = b_tv/A   * Phi(b_tv/ts);
-          term_3 = ts/A     * exp(normal_lpdf(b_A_tv/ts|0,1)); 
-          term_4 = ts/A     * exp(normal_lpdf(b_tv/ts|0,1)); 
-          cdf = 1 + term_1 - term_2 + term_3 - term_4;
-          
-          return cdf;
-          
-     }
-     
-    real lba_lpdf(real rt, real res, real k, real A, vector v, real s, real tau){
-        
-        real t;
-        real b;
-        real cdf;
-        real pdf;		
-        real prob;
-        real out;
-        real prob_neg;
-    
-        b = A + k;
-        t = rt - tau;
-        
-        if(t > 0){			
-              cdf = 1;
-              for(j in 1 : num_elements(v)){
-                    if(res == j){
-                          pdf = lba_pdf(t, b, A, v[j], s);
-                    }else{	
-                          cdf = (1 - lba_cdf(t, b, A, v[j], s)) * cdf;
-                    }
-              }
-              
-              prob_neg = 1;
-              for(j in 1:num_elements(v)){
-                    prob_neg = Phi(-v[j] / s) * prob_neg;    
-              }
-              prob = pdf * cdf;		
-              prob = prob / (1 - prob_neg);	
-              if(prob < 1e-10){
-                    prob = 1e-10;				
-              }
-        }else{
-            prob = 1e-10;			
-        }
-        out = log(prob);
-        return out;		
-    }
-     
-    vector lba_rng(real k, real A, vector v, real s, real tau){
-          
-          int get_pos_drift;	
-          int no_pos_drift;
-          int get_first_pos;
-          vector[num_elements(v)] drift;
-          int max_iter;
-          int iter;
-          real start[num_elements(v)];
-          real ttf[num_elements(v)];
-          int resp[num_elements(v)];
-          real rt;
-          vector[2] pred;
-          real b;
-          
-          //try to get a positive drift rate
-          get_pos_drift = 1;
-          no_pos_drift = 0;
-          max_iter = 1000;
-          iter = 0;
-          while(get_pos_drift){
-               for(j in 1:num_elements(v)){
-                    drift[j] = normal_rng(v[j],s);
-                    if(drift[j] > 0){
-                         get_pos_drift = 0;
-                    }
-               }
-               iter = iter + 1;
-               if(iter > max_iter){
-                    get_pos_drift = 0;
-                    no_pos_drift = 1;
-               }	
-          }
-          //if both drift rates are <= 0
-          //return an infinite response time
-          if(no_pos_drift){
-               pred[1] = -1;
-               pred[2] = -1;
-          }else{
-               b = A + k;
-               for(i in 1:num_elements(v)){
-                    //start time of each accumulator	
-                    start[i] = uniform_rng(0,A);
-                    //finish times
-                    ttf[i] = (b-start[i])/drift[i];
-               }
-               //rt is the fastest accumulator finish time	
-               //if one is negative get the positive drift
-               resp = sort_indices_asc(ttf);
-               ttf = sort_asc(ttf);
-               get_first_pos = 1;
-               iter = 1;
-               while(get_first_pos){
-                    if(ttf[iter] > 0){
-                         pred[1] = ttf[iter] + tau;
-                         pred[2] = resp[iter]; 
-                         get_first_pos = 0;
-                    }
-                    iter = iter + 1;
-               }
-          }
-          return pred;	
-     }
-}
-
-data{
-     int LENGTH;
-     int NUM_CHOICES;
-     vector[LENGTH] rt;
-     vector[LENGTH] res;
-}
-
-parameters {
-     real<lower=0> k;
-     real<lower=0> A;
-     real<lower=0> tau;
-     vector<lower=0>[NUM_CHOICES] v;
-}
-
-transformed parameters {
-     real s;
-     s = 1;
-}
-
-model {
-     k ~ normal(.5,1)T[0,];
-     A ~ normal(.5,1)T[0,];
-     tau ~ normal(.5,.5)T[0,];
-     for(n in 1:NUM_CHOICES){
-          v[n] ~ normal(2,1)T[0,];
-     }
-     
-     for(m in 1:LENGTH){
-          rt[m] ~ lba(res[m],k,A,v,s,tau);
-     }
-}
-
-generated quantities {
-     vector[2] pred;
-     vector[LENGTH] log_lik;
-     
-     pred = lba_rng(k,A,v,s,tau);
-    
-     for(i in 1 : LENGTH){
-          log_lik[i] = lba_lpdf(rt[i] | res[i], k, A, v, s, tau);
-     }
-}
-```
-
-
-モデル1（HLBA1.stan)：vもAもtimeに対し一定（階層パラメータは、２群で一定）
-
-### モデル１のStanコード
-
-```{r}
-model1<-"
+```{stan output.var="lbaModel1"}
 functions{
      
      real lba_pdf(real t, real b, real A, real v, real s){
@@ -644,7 +421,6 @@ generated quantities {
     }
      
 }
-"
 ```
 
 ## Rstanによるサンプリング
