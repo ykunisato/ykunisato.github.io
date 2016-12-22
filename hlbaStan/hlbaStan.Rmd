@@ -125,29 +125,46 @@ table(dataSub1Con2$response)
 table(dataSub1Con3$response)
 ```
 
-
-
-
-
-ここから
-
-
-
-
-
-
+条件１の選択肢ごとの反応時間のヒストグラム
 
 ```{r, message=FALSE, warning=FALSE}
 # 選択肢1の反応時間
-data1 <- subset(data,data$response==1)
-p1 <- ggplot(data1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+dataSub1Con1Choice1 <- subset(dataSub1Con1,dataSub1Con1$response==1)
+p1 <- ggplot(dataSub1Con1Choice1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 10))
 
 # 選択肢2の反応時間
-data2 <- subset(data,data$response==2)
-p2 <- ggplot(data2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
+dataSub1Con1Choice2 <- subset(dataSub1Con1,dataSub1Con1$response==2)
+p2 <- ggplot(dataSub1Con1Choice2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 10))
 subplot(p1, p2)
 ```
 
+
+条件１の選択肢ごとの反応時間のヒストグラム
+
+```{r, message=FALSE, warning=FALSE}
+# 選択肢1の反応時間
+dataSub1Con1Choice1 <- subset(dataSub1Con1,dataSub1Con1$response==1)
+p1 <- ggplot(dataSub1Con1Choice1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 10))
+
+# 選択肢2の反応時間
+dataSub1Con1Choice2 <- subset(dataSub1Con1,dataSub1Con1$response==2)
+p2 <- ggplot(dataSub1Con1Choice2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 10))
+subplot(p1, p2)
+```
+
+
+条件１の選択肢ごとの反応時間のヒストグラム
+
+```{r, message=FALSE, warning=FALSE}
+# 選択肢1の反応時間
+dataSub1Con1Choice1 <- subset(dataSub1Con1,dataSub1Con1$response==1)
+p1 <- ggplot(dataSub1Con1Choice1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 10))
+
+# 選択肢2の反応時間
+dataSub1Con1Choice2 <- subset(dataSub1Con1,dataSub1Con1$response==2)
+p2 <- ggplot(dataSub1Con1Choice2,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 10))
+subplot(p1, p2)
+```
 
 
 
@@ -620,7 +637,7 @@ loo::loo(extractFit$log_lik)$looic/(2*trialLength)
 loo::waic(extractFit$log_lik)$waic/(2*trialLength)
 ```
 
-ここまで出来たら，複数の参加者のデータに対して階層ベイズにもっていきたいところですが，ちょっと分量が長くなりすぎてしまったので，またの機会に！  
+  
 
 
 **Enjoy Stan!**

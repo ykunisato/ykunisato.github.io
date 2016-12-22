@@ -76,10 +76,10 @@ real lba_pdf(real t, real b, real A, real v_pdf, real s){
       b_A_tv_ts = (b - A - t * v_pdf) / (t * s);
       b_tv_ts = (b - t * v_pdf) / (t * s);
       term_1b = v_pdf * Phi(b_A_tv_ts);
-      term_2b = s * exp(normal_lpdf(fabs(b_A_tv_ts)|0,1)); 
+      term_2b = s * exp(normal_lpdf(fabs(b_A_tv_ts)|0, 1)); 
       term_3b = v_pdf * Phi(b_tv_ts);
-      term_4b = s * exp(normal_lpdf(fabs(b_tv_ts)|0,1)); 
-      pdf = (1/A) * (-term_1b + term_2b + term_3b - term_4b);
+      term_4b = s * exp(normal_lpdf(fabs(b_tv_ts)|0, 1)); 
+      pdf = (1 / A) * (-term_1b + term_2b + term_3b - term_4b);
       
       return pdf;
  }
@@ -112,8 +112,8 @@ real lba_cdf(real t, real b, real A, real v_cdf, real s){
     ts = t * s;
     term_1a = b_A_tv / A * Phi(b_A_tv / ts);	
     term_2a = b_tv / A * Phi(b_tv / ts);
-    term_3a = ts / A * exp(normal_lpdf(fabs(b_A_tv / ts)|0,1)); 
-    term_4a = ts / A * exp(normal_lpdf(fabs(b_tv / ts)|0,1)); 
+    term_3a = ts / A * exp(normal_lpdf(fabs(b_A_tv / ts)|0, 1)); 
+    term_4a = ts / A * exp(normal_lpdf(fabs(b_tv / ts)|0, 1)); 
     cdf = 1 + term_1a - term_2a + term_3a - term_4a;
     
     return cdf;
@@ -155,8 +155,8 @@ real lba_lpdf(real rt, real res, real k, real A, vector v, real s, real tau){
           }
           
           prob_neg = 1;
-          for(j in 1:num_elements(v)){
-                prob_neg = Phi(-v[j] / s) * prob_neg;    
+          for(j in 1 : num_elements(v)){
+                prob_neg = Phi( - v[j] / s) * prob_neg;    
           }
           prob = pdf * cdf;		
           prob = prob / (1 - prob_neg);	
@@ -182,14 +182,14 @@ vector lba_rng(real k, real A, vector v, real s, real psi){
     int get_pos_drift;	
     int no_pos_drift;
     int get_first_pos;
-    vector[num_elements(v)] drift;
+    vector [num_elements(v)] drift;
     int max_iter;
     int iter;
     real start[num_elements(v)];
     real ttf[num_elements(v)];
     int resp[num_elements(v)];
     real rt;
-    vector[2] pred;
+    vector [2] pred;
     real b;
     
     //try to get a positive drift rate
@@ -213,8 +213,8 @@ vector lba_rng(real k, real A, vector v, real s, real psi){
     //if both drift rates are <= 0
     //return an infinite response time
     if(no_pos_drift){
-         pred[1] = -1;
-         pred[2] = -1;
+         pred[1] = - 1;
+         pred[2] = - 1;
     }else{
          b = A + k;
          for(i in 1 : num_elements(v)){
@@ -341,7 +341,10 @@ subplot(p1, p2)
 
 　上記で設定したfunctionブロックだけでなく，dataブロック以降も書きました。
 
-※なお，以降は，@kazutan氏の[Stan Advent 2016の記事](http://qiita.com/kazutan/items/6cc162bc3c4b1b9062f2)を参考に，R MarkdownにStanコード直書きしてコンパイルする方法をとっています。つまり，チャンクで，{stan output.var="lbaModel"}と指定しています。
+＊なお，以降は，@kazutan氏の[Stan Advent 2016の記事](http://qiita.com/kazutan/items/6cc162bc3c4b1b9062f2)を参考に，R MarkdownにStanコード直書きしてコンパイルする方法をとっています。つまり，チャンクで，{stan output.var="lbaModel"}と指定しています。
+
+＊2016/12/22追記：どうもRmarkdownでStanチャンクを使ってHTMLファイルを出力すると，:や一部の演算子の前後にスペースをいれないと正確に表示されないことがあるようです（バグかな？）。コード自体は正確に動くので，エラーに気づきにくかったりします。出来る限り，エラーを修正しましたが，一部まだエラーが残っているかもしれません。[こちらに](lbaStan.Rmd)，本資料を作るときに使用したRmdファイルをおいておくので，解析を自分でもやってみる場合は，こちらをダウンロードください。
+
 
 ```{stan output.var="lbaModel"}
 functions{
@@ -357,13 +360,13 @@ functions{
           real term_4;
           real pdf;
           
-          b_A_tv_ts = (b - A - t*v)/(t*s);
-          b_tv_ts = (b - t*v)/(t*s);
-          term_1 = v*Phi(b_A_tv_ts);
-          term_2 = s*exp(normal_lpdf(b_A_tv_ts|0,1)); 
-          term_3 = v*Phi(b_tv_ts);
-          term_4 = s*exp(normal_lpdf(b_tv_ts|0,1)); 
-          pdf = (1/A)*(-term_1 + term_2 + term_3 - term_4);
+          b_A_tv_ts = (b - A - t * v) / (t * s);
+          b_tv_ts = (b - t * v) / (t * s);
+          term_1 = v * Phi(b_A_tv_ts);
+          term_2 = s * exp(normal_lpdf(b_A_tv_ts|0, 1)); 
+          term_3 =v * Phi(b_tv_ts);
+          term_4 = s * exp(normal_lpdf(b_tv_ts|0, 1)); 
+          pdf = (1 / A) * (-term_1 + term_2 + term_3 - term_4);
           
           return pdf;
      }
@@ -381,12 +384,12 @@ functions{
           real cdf;	
           
           b_A_tv = b - A - t*v;
-          b_tv = b - t*v;
+          b_tv = b - t * v;
           ts = t*s;
-          term_1 = b_A_tv/A * Phi(b_A_tv/ts);	
-          term_2 = b_tv/A   * Phi(b_tv/ts);
-          term_3 = ts/A     * exp(normal_lpdf(b_A_tv/ts|0,1)); 
-          term_4 = ts/A     * exp(normal_lpdf(b_tv/ts|0,1)); 
+          term_1 = b_A_tv / A * Phi(b_A_tv / ts);	
+          term_2 = b_tv / A * Phi(b_tv / ts);
+          term_3 = ts / A * exp(normal_lpdf(b_A_tv / ts|0, 1)); 
+          term_4 = ts / A * exp(normal_lpdf(b_tv / ts|0, 1)); 
           cdf = 1 + term_1 - term_2 + term_3 - term_4;
           
           return cdf;
@@ -417,8 +420,8 @@ functions{
               }
               
               prob_neg = 1;
-              for(j in 1:num_elements(v)){
-                    prob_neg = Phi(-v[j] / s) * prob_neg;    
+              for(j in 1 : num_elements(v)){
+                    prob_neg = Phi( - v[j] / s) * prob_neg;    
               }
               prob = pdf * cdf;		
               prob = prob / (1 - prob_neg);	
@@ -453,7 +456,7 @@ functions{
           max_iter = 1000;
           iter = 0;
           while(get_pos_drift){
-               for(j in 1:num_elements(v)){
+               for(j in 1 : num_elements(v)){
                     drift[j] = normal_rng(v[j],s);
                     if(drift[j] > 0){
                          get_pos_drift = 0;
@@ -468,8 +471,8 @@ functions{
           //if both drift rates are <= 0
           //return an infinite response time
           if(no_pos_drift){
-               pred[1] = -1;
-               pred[2] = -1;
+               pred[1] = - 1;
+               pred[2] = - 1;
           }else{
                b = A + k;
                for(i in 1:num_elements(v)){
@@ -517,15 +520,15 @@ transformed parameters {
 }
 
 model {
-     k ~ normal(.5,1)T[0,];
-     A ~ normal(.5,1)T[0,];
-     tau ~ normal(.5,.5)T[0,];
+     k ~ normal(.5, 1)T[0,];
+     A ~ normal(.5, 1)T[0,];
+     tau ~ normal(.5, .5)T[0,];
      for(n in 1:NUM_CHOICES){
-          v[n] ~ normal(2,1)T[0,];
+          v[n] ~ normal(2, 1)T[0,];
      }
      
      for(m in 1:LENGTH){
-          rt[m] ~ lba(res[m],k,A,v,s,tau);
+          rt[m] ~ lba(res[m], k, A, v, s, tau);
      }
 }
 
@@ -533,7 +536,7 @@ generated quantities {
      vector[2] pred;
      vector[LENGTH] log_lik;
      
-     pred = lba_rng(k,A,v,s,tau);
+     pred = lba_rng(k, A, v, s, tau);
     
      for(i in 1 : LENGTH){
           log_lik[i] = lba_lpdf(rt[i] | res[i], k, A, v, s, tau);
