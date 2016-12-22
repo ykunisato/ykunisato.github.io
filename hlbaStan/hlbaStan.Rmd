@@ -1,7 +1,7 @@
 ---
 title: "RStanによる反応時間の階層ベイズ解析：Linear Ballistic Accumulator modelを用いて"
 author: "専修大学人間科学部心理学科　国里愛彦"
-date: "2016年12月22日"
+date: "2016年12月"
 output:
   html_document:
     md_extensions: -ascii_identifiers
@@ -13,7 +13,7 @@ output:
 
 # はじめに
 
-[Linear Ballistic Accumulator modelを用いた反応時間分析](https://ykunisato.github.io/lbaStan/lbaStan.html)では，１名の参加者の反応時間データをRstanのユーザー定義関数を活用しながら解析する方法について解説を行いました。その際に，試行数は500施行という現実的ではない値を用いていました。今回は，10名が100試行反応するというありえそうな状況を想定してみます。
+[Linear Ballistic Accumulator modelを用いた反応時間分析](https://ykunisato.github.io/lbaStan/lbaStan.html)では，１名の参加者の反応時間データをRstanのユーザー定義関数を活用しながら解析する方法について解説を行いました。その際に，試行数は500施行という現実的ではない値を用いていました。今回は，10名が100試行反応するという，心理学実験でありえそうな状況を想定してみます。
 
 # 使用パッケージ
 
@@ -36,6 +36,7 @@ library(msm)
 Annis et al. (2016)による [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)のコードを参考にしつつ，10名の参加者が３条件の２選択肢の課題をそれぞれ100試行行ったというデータを作ってみる。まずは，人数分のパラメータを準備します。
 
 ```{r, message=FALSE, warning=FALSE}
+set.seed(123)
 # 参加者数，試行数，条件数
 numberSubject <- 10
 numberTrials <- 100
@@ -73,7 +74,6 @@ print(parameters)
 上記で設定したパラメータをもとに，rtdistsのrLBA関数を用いて反応時間と反応のデータを作ります。作ったデータは，ロング形式にしました。そして，stanLongDataにStanで使えるようにリスト形式でデータを保存しています。
 
 ```{r, message=FALSE, warning=FALSE}
-set.seed(1234)
 longData <- NULL
 for(i in 1:numberSubject){
     id <- rep(i,numberTrials)
@@ -104,13 +104,40 @@ stanLongData <- list(RT=longData$rt,RES=longData$response,ID=longData$id,CONDITI
 
 ## データの確認
 
+全員の結果を確認するわけにもいかないので，適当に，ID=1の条件１，２，３の結果を見てみることにします。
+
+```{r, message=FALSE, warning=FALSE}
+# 参加者IDが５の人の各条件のデータを作る。
+dataSub1 <- subset(longData,longData$id==1)
+dataSub1Con1 <- subset(dataSub1,dataSub1$condition==1)
+dataSub1Con2 <- subset(dataSub1,dataSub1$condition==2)
+dataSub1Con3 <- subset(dataSub1,dataSub1$condition==3)
+```
+
+各条件の反応
+
+```{r, message=FALSE, warning=FALSE}
+# 条件１
+table(dataSub1Con1$response)
+# 条件２
+table(dataSub1Con2$response)
+# 条件３
+table(dataSub1Con3$response)
+```
+
+
+
+
+
+ここから
+
+
+
+
 
 
 
 ```{r, message=FALSE, warning=FALSE}
-
-
-table(data$response)
 # 選択肢1の反応時間
 data1 <- subset(data,data$response==1)
 p1 <- ggplot(data1,aes(x = rt)) + geom_histogram()+coord_cartesian(xlim = c(0, 3), ylim = c(0, 70))
