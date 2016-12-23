@@ -38,7 +38,7 @@ Annis et al. (2016)による [Bayesian inference with Stan: A tutorial on adding
 ```{r, message=FALSE, warning=FALSE}
 set.seed(123)
 # 参加者数，試行数，条件数
-numberSubject <- 10
+numberSubjects <- 10
 numberTrials <- 100
 numberConditions <- 3
 
@@ -55,15 +55,15 @@ v2_mu_c3 = 2.5
 s = 1
 
 #　ハイパーパラメータをもとにした個人のパラメータ（切断正規分布を利用）
-A = rtnorm(numberSubject,A_mu,.5,0,Inf)
-b = rtnorm(numberSubject,b_mu,.5,A,Inf)
-t0 = rtnorm(numberSubject,t0_mu,.5,0,1)
-v1_c1 = rtnorm(numberSubject,v1_mu_c1,1,0,Inf)
-v2_c1 = rtnorm(numberSubject,v2_mu_c1,1,0,Inf)
-v1_c2 = rtnorm(numberSubject,v1_mu_c2,1,0,Inf)
-v2_c2 = rtnorm(numberSubject,v2_mu_c2,1,0,Inf)
-v1_c3 = rtnorm(numberSubject,v1_mu_c3,1,0,Inf)
-v2_c3 = rtnorm(numberSubject,v2_mu_c3,1,0,Inf)
+A = rtnorm(numberSubjects,A_mu,.5,0,Inf)
+b = rtnorm(numberSubjects,b_mu,.5,A,Inf)
+t0 = rtnorm(numberSubjects,t0_mu,.5,0,1)
+v1_c1 = rtnorm(numberSubjects,v1_mu_c1,1,0,Inf)
+v2_c1 = rtnorm(numberSubjects,v2_mu_c1,1,0,Inf)
+v1_c2 = rtnorm(numberSubjects,v1_mu_c2,1,0,Inf)
+v2_c2 = rtnorm(numberSubjects,v2_mu_c2,1,0,Inf)
+v1_c3 = rtnorm(numberSubjects,v1_mu_c3,1,0,Inf)
+v2_c3 = rtnorm(numberSubjects,v2_mu_c3,1,0,Inf)
 
 # パラメータとハイパーパラメータのデータフレーム化
 hyperParameters <- data.frame(A_mu,b_mu,t0_mu,v1_mu_c1,v2_mu_c1,v1_mu_c2,v2_mu_c2,v1_mu_c3,v2_mu_c3,s)
@@ -75,7 +75,7 @@ print(parameters)
 
 ```{r, message=FALSE, warning=FALSE}
 longData <- NULL
-for(i in 1:numberSubject){
+for(i in 1:numberSubjects){
     id <- rep(i,numberTrials)
     # 条件１
     tempRt <- rLBA(numberTrials, A=parameters$A[i], b=parameters$b[i], t0=parameters$t0[i], mean_v=c(parameters$v1_c1[i],parameters$v2_c1[i]), sd_v=c(s,s))
@@ -97,9 +97,9 @@ for(i in 1:numberSubject){
     longData <- rbind(longData,indData)
 }
 
-allTrial <- length(longData)
+numberAllTrials <- length(longData$rt)
 # Stan用データの作成
-stanLongData <- list(RT=longData$rt,RES=longData$response,ID=longData$id,CONDITION = longData$condition, TRIAL_LENGTH=numberTrials,NUM_COND=numberConditions,NUM_SUBJ=numberSubject,NUM_CHOICES=2,ALLTRIAL=allTrial,NUM_CHOICES=2)
+stanLongData <- list(rt=longData$rt,response=longData$response,id=longData$id,condition = longData$condition, numberConditions=numberConditions,numberSubjects=numberSubjects,numberChoices=2,numberAllTrials=numberAllTrials)
 ```
 
 ## データの確認
@@ -173,22 +173,16 @@ subplot(p1, p2)
 
 
 
-# 解析モデル
+# 階層ベイズモデル
 
-今回は，10名の参加者が３つの条件にたいしてそれぞれ100試行反応するというデータを作成しました。これを階層ベイズを使って推定します。参加者ごとにLinear Ballistic Accumulator Modelのパラメータがありますが，それらが切断正規分布に従うという事前分布をおいて，階層ベイズによる推定を行います。また，同じ参加者が３つの条件を経験しているので，こちらも階層化しますが，条件の効果がパラメータにかかる場合とかからない場合でモデルを組みます。
+　今回は，10名の参加者が３つの条件にたいしてそれぞれ100試行反応するというデータを作成しました。これを階層ベイズを使って推定します。参加者ごとにLinear Ballistic Accumulator Modelのパラメータがありますが，それらが切断正規分布に従うという事前分布をおいて，階層ベイズによる推定を行います。また，同じ参加者が３つの条件を経験しているので，こちらも階層化しますが，条件の効果がパラメータにかかる場合とかからない場合でモデルを組みます。
+　条件の効果は，Aとvにかかることにします。おそらく，無判断時間や閾値自体は条件によって変わらないのではないかという前提のものとで，Aとvに条件の効果がかかるかどうかを検討します（実際は，もう少し複数のモデルを検討しても良いかと思います）。
 
-## 階層ベイズモデル（条件ごとに平均ドリフト率も開始点の上限も同じ）
+## 条件による効果なしモデル
 
+まず，k,A,v,tauは参加者ごとに異なるが，条件によってパラメータは異ならないという前提で解析を行います。グラフィカルモデルを描くと以下のようになる（Conditionは不要ですが，比較のために描いています）。
 
-
-
-
-
-
-
-
-
-
+### グラフィカルモデル
 
 ```{r}
 grViz("
@@ -205,12 +199,12 @@ grViz("
       node [label = '&tau;@_{n}'] t
       node [label = '&mu;@_{&tau;}'] mt
       node [label = '&sigma;@_{&tau;}'] st
-      node [label = 'v1@_{n}'] v1
-      node [label = '&mu;@_{v1}'] mv1
-      node [label = '&sigma;@_{v1}'] sv1
-      node [label = 'v2@_{n}'] v2
-      node [label = '&mu;@_{v2}'] mv2
-      node [label = '&sigma;@_{v2}'] sv2
+      node [label = 'v[1]@_{n}'] v1
+      node [label = '&mu;@_{v[1]}'] mv1
+      node [label = '&sigma;@_{v[1]}'] sv1
+      node [label = 'v[2]@_{n}'] v2
+      node [label = '&mu;@_{v[2]}'] mv2
+      node [label = '&sigma;@_{v[2]}'] sv2
       node [label = 'S'] s
       node [label = 'LBA@_{n,c,t}'] lba
       node [fillcolor = grey,label = 'RT@_{n,c,t}'] rt
@@ -251,29 +245,26 @@ grViz("
   }",engine = "dot")
 ```
 
-事前分布はAnnisらを参考に以下にしました。
+事前分布はAnnisらを参考に以下にしました(ハイパーパラメータの分散の事前分布のみGamma(1,1)からstudent T(4,0,1変更）。
 $$ 
-k_{i} \sim Normal(\mu_{k},\sigma_{k})T(0,\infty)\\
-A_{i} \sim Normal(\mu_{A},\sigma_{A})T(0,\infty)\\
-\tau_{i} \sim Normal(\mu_{\tau},\sigma_{\tau})T(0,\infty)\\
-v1_{i} \sim Normal(\mu_{v1},\sigma_{v1})T(0,\infty)\\
-v2_{i} \sim| Normal(\mu_{v2},\sigma_{v2})T(0,\infty)\\
-\mu^{A},\mu^{k} \sim Normal(0.5,1)T(0,\infty)\\
-\mu^{\tau} \sim Normal(0.5,0.5)T(0,\infty)\\
-\mu^{v1},\mu^{v2} \sim Normal(2,1)T(0,\infty)\\
-\sigma^{A},\sigma^{k}, \sigma^{v1},\sigma^{v2},\sigma^{\tau} \sim student_t(4,0,1)T(0,\infty) [Gamma(1,1)から変更]\\ 
-S = 1 [Sは定数]\\
-RT[t, i] \sim LBA(k_{i},A_{i},\tau_{i},v1_{i,j},s) [選択肢１の時]\\
-RT[t, i] \sim LBA(k_{i},A_{i},\tau_{i},v2_{i,j},s) [選択肢2の時]\\
-k \sim Normal(.5,1)T[0,]\\
-A \sim Normal(.5,1)T[0,]\\
-\tau \sim Normal(.5,.5)T[0,]\\
-v[1],v[2] \sim Normal(2,1)T[0,]\\
-S = 1 \hspace{30pt}※Sは定数
+k_{n} \sim Normal(\mu_{k},\sigma_{k})T(0,\infty)\\
+A_{n} \sim Normal(\mu_{A},\sigma_{A})T(0,\infty)\\
+\tau_{n} \sim Normal(\mu_{\tau},\sigma_{\tau})T(0,\infty)\\
+v[1]_{n} \sim Normal(\mu_{v[1]},\sigma_{v[1]})T(0,\infty)\\
+v[2]_{n} \sim Normal(\mu_{v[2]},\sigma_{v[2]})T(0,\infty)\\
+\mu_{A},\mu_{k} \sim Normal(0.5,1)T(0,\infty)\\
+\mu_{\tau} \sim Normal(0.5,0.5)T(0,\infty)\\
+\mu_{v[1]},\mu_{v[2]} \sim Normal(2,1)T(0,\infty)\\
+\sigma_{A},\sigma_{k}, \sigma_{v[1]},\sigma_{v[2]},\sigma_{\tau} \sim student\,t(4,0,1)T(0,\infty)\\
+S = 1 \hspace{30pt}※Sは定数\\
+RT[n,c, t] \sim LBA(k_{n},A_{n},\tau_{n},v[1]_{n},s) [選択肢１の時]\\
+RT[n,c, t] \sim LBA(k_{n},A_{n},\tau_{n},v[2]_{n},s) [選択肢2の時]\\
 $$
-# Stanモデル
+### Stanコード
 
-```{stan output.var="lbaModel1"}
+基本的には，[「RStanによる反応時間の解析：Linear Ballistic Accumulator modelを用いて」](https://ykunisato.github.io/lbaStan/lbaStan.html)で解説したユーザー定義関数を用います。
+
+```{stan output.var="lbaModel1", include=FALSE}
 functions{
      
      real lba_pdf(real t, real b, real A, real v, real s){
@@ -428,31 +419,29 @@ functions{
 }
 
 data{
-     int TRIAL_LENGTH;
-     int NUM_COND;
-     int NUM_SUBJ;
-     int NUM_CHOICES;
-     int allTrial;
-     vector[allTrial] rt;
-     vector[allTrial] res;
-     int group[NUM_SUBJ];
-     int time[allTrial];
-     int id[allTrial];
+     int numberConditions;
+     int numberSubjects;
+     int numberChoices;
+     int numberAllTrials;
+     vector[numberAllTrials] rt;
+     vector[numberAllTrials] response;
+     int condition[numberAllTrials];
+     int id[numberAllTrials];
 }
 
 parameters {
-     real<lower=0> k[NUM_SUBJ];
-     real<lower=0> A[NUM_SUBJ];
-     real<lower=0> psi[NUM_SUBJ];
-     vector<lower=0> [NUM_CHOICES] v [NUM_SUBJ];
-     real<lower=0> k_sigma;
-     real<lower=0> A_sigma;
-     real<lower=0> psi_sigma;
-     vector<lower=0> [NUM_CHOICES] v_sigma;
-     real<lower=0> k_mu;
-     real<lower=0> A_mu;
-     real<lower=0> psi_mu;
-     vector<lower=0> [NUM_CHOICES] v_mu;
+     real < lower = 0 > k[numberSubjects];
+     real < lower = 0 > A[numberSubjects];
+     real < lower = 0 > psi[numberSubjects];
+     vector < lower = 0 > [numberChoices] v [numberSubjects];
+     real < lower = 0 > k_sigma;
+     real < lower = 0 > A_sigma;
+     real < lower = 0 > psi_sigma;
+     vector < lower = 0 > [numberChoices] v_sigma;
+     real < lower = 0 > k_mu;
+     real < lower = 0 > A_mu;
+     real < lower = 0 > psi_mu;
+     vector < lower=0> [numberChoices] v_mu;
 }
 
 transformed parameters {
@@ -462,7 +451,7 @@ transformed parameters {
 
 model {
      int subIndex;
-     int condIndex;
+     // ハイパーパラメータの事前分布の設定
      k_mu ~ normal(.5, 1)T[0, ];
      A_mu ~ normal(.5, 1)T[0, ];
      psi_mu ~ normal(.5, .5)T[0, ];
@@ -470,48 +459,48 @@ model {
      A_sigma ~ student_t(4, 0, 1)T[0, ];
      psi_sigma ~ student_t(4, 0, 1)T[0, ];
      
-     for(n in 1 : NUM_CHOICES){
+     for(n in 1 : numberChoices){
         v_mu[n] ~ normal(2, 1)T[0, ];
         v_sigma[n] ~ student_t(4, 0, 1)T[0, ];
       }
      
-     for(i in 1:NUM_SUBJ){		
+     // パラメータの事前分布の設定
+     for(i in 1 : numberSubjects){		
           k[i] ~ normal(k_mu, k_sigma)T[0, ];
           A[i] ~ normal(A_mu, A_sigma)T[0, ];
           psi[i] ~ normal(psi_mu, psi_sigma)T[0, ];
 
-          for(n in 1 : NUM_CHOICES){
+          for(n in 1 : numberChoices){
               v[i,n] ~ normal(v_mu[n],v_sigma[n])T[0, ];
           }
      }
     
-    for(m in 1 : allTrial){
+    // 対数事後確率の計算部分
+    for(m in 1 : numberAllTrials){
            subIndex = id[m];
-          rt[m] ~ lba(res[m], k[subIndex], A[subIndex], v[subIndex], s, psi[subIndex]);
+          rt[m] ~ lba(response[m], k[subIndex], A[subIndex], v[subIndex], s, psi[subIndex]);
     }
 }
 
 generated quantities {
-     vector[2] pred[NUM_SUBJ,NUM_COND];
-     vector[allTrial] log_lik;
+     vector[2] pred[numberSubjects];
+     vector[numberAllTrials] log_lik;
      int subIndex;
-     int condIndex;
-     
-     for(i in 1 : NUM_SUBJ){
-          for(j in 1 : NUM_COND){
-               pred[i, j] = lba_rng(A[i], k[i], v[i], s, psi[i]);
-          }
+     for(i in 1 : numberSubjects){
+          pred[i] = lba_rng(A[i], k[i], v[i], s, psi[i]);
      }
-
-    for(m in 1 : allTrial){
+    for(m in 1 : numberAllTrials){
           subIndex = id[m];
-          log_lik[m] = lba_lpdf(rt[m] | res[m], k[subIndex], A[subIndex], v[subIndex], s, psi[subIndex]);
+          log_lik[m] = lba_lpdf(rt[m] | response[m], k[subIndex], A[subIndex], v[subIndex], s, psi[subIndex]);
     }
-     
 }
 ```
 
-# 階層ベイズモデル（条件ごとに平均ドリフト率と開始点の上限が異なる）
+## 条件によるAとvへの効果ありモデル
+
+次は，条件によるA(開始点の上限)とv（ドリフト率の平均）への効果を仮定したモデルになります。おそらく条件によって異なるという前提がある場合は，こちらのほうが自然に思います。
+
+### グラフィカルモデル
 
 ```{r}
 grViz("
@@ -528,12 +517,12 @@ grViz("
       node [label = '&tau;@_{n}'] t
       node [label = '&mu;@_{&tau;}'] mt
       node [label = '&sigma;@_{&tau;}'] st
-      node [label = 'v1@_{n,c}'] v1
-      node [label = '&mu;@_{v1}'] mv1
-      node [label = '&sigma;@_{v1}'] sv1
-      node [label = 'v2@_{n,c}'] v2
-      node [label = '&mu;@_{v2}'] mv2
-      node [label = '&sigma;@_{v2}'] sv2
+      node [label = 'v[1]@_{n,c}'] v1
+      node [label = '&mu;@_{v[1]}'] mv1
+      node [label = '&sigma;@_{v[1]}'] sv1
+      node [label = 'v[2]@_{n,c}'] v2
+      node [label = '&mu;@_{v[2]}'] mv2
+      node [label = '&sigma;@_{v[2]}'] sv2
       node [label = 'S'] s
       node [label = 'LBA@_{n,c,t}'] lba
       node [fillcolor = grey,label = 'RT@_{n,c,t}'] rt
@@ -596,9 +585,9 @@ S = 1 \hspace{30pt}※Sは定数
 $$
 
 
-# Stanモデル
+### Stanコード
 
-```{stan output.var="lbaModel2"}
+```{stan output.var="lbaModel2", include=FALSE}
 functions{
      
      real lba_pdf(real t, real b, real A, real v, real s){
@@ -753,31 +742,29 @@ functions{
 }
 
 data{
-     int TRIAL_LENGTH;
-     int NUM_COND;
-     int NUM_SUBJ;
-     int NUM_CHOICES;
-     int allTrial;
-     vector[allTrial] rt;
-     vector[allTrial] res;
-     int group[NUM_SUBJ];
-     int time[allTrial];
-     int id[allTrial];
+     int numberConditions;
+     int numberSubjects;
+     int numberChoices;
+     int numberAllTrials;
+     vector[numberAllTrials] rt;
+     vector[numberAllTrials] response;
+     int condition[numberAllTrials];
+     int id[numberAllTrials];
 }
 
 parameters {
-     real<lower=0> k[NUM_SUBJ];
-     real<lower=0> A[NUM_SUBJ];
-     real<lower=0> psi[NUM_SUBJ];
-     vector<lower=0> [NUM_CHOICES] v [NUM_SUBJ];
-     real<lower=0> k_sigma;
-     real<lower=0> A_sigma;
-     real<lower=0> psi_sigma;
-     vector<lower=0> [NUM_CHOICES] v_sigma;
-     real<lower=0> k_mu;
-     real<lower=0> A_mu;
-     real<lower=0> psi_mu;
-     vector<lower=0> [NUM_CHOICES] v_mu;
+     real < lower = 0 > k[numberSubjects];
+     vector < lower = 0 > [numberConditions] A [numberSubjects];
+     real < lower = 0 > psi[numberSubjects];
+     vector < lower = 0 > [numberChoices] v [numberSubjects, numberConditions];
+     real < lower = 0 > k_sigma;
+     vector < lower = 0 > [numberConditions] A_sigma;
+     real < lower = 0 > psi_sigma;
+     vector < lower = 0 > [numberChoices] v_sigma [numberConditions];
+     real < lower = 0 > k_mu;
+     vector < lower = 0 > [numberConditions] A_mu;
+     real < lower = 0 > psi_mu;
+     vector < lower=0> [numberChoices] v_mu [numberConditions];
 }
 
 transformed parameters {
@@ -788,49 +775,56 @@ transformed parameters {
 model {
      int subIndex;
      int condIndex;
+     // ハイパーパラメータの事前分布の設定
      k_mu ~ normal(.5, 1)T[0, ];
-     A_mu ~ normal(.5, 1)T[0, ];
      psi_mu ~ normal(.5, .5)T[0, ];
      k_sigma ~ student_t(4, 0, 1)T[0, ];
-     A_sigma ~ student_t(4, 0, 1)T[0, ];
      psi_sigma ~ student_t(4, 0, 1)T[0, ];
      
-     for(n in 1 : NUM_CHOICES){
-        v_mu[n] ~ normal(2, 1)T[0, ];
-        v_sigma[n] ~ student_t(4, 0, 1)T[0, ];
-      }
-     
-     for(i in 1:NUM_SUBJ){		
-          k[i] ~ normal(k_mu, k_sigma)T[0, ];
-          A[i] ~ normal(A_mu, A_sigma)T[0, ];
-          psi[i] ~ normal(psi_mu, psi_sigma)T[0, ];
-
-          for(n in 1 : NUM_CHOICES){
-              v[i,n] ~ normal(v_mu[n],v_sigma[n])T[0, ];
+     for( j in 1 : numberConditions){
+        A_sigma[j] ~ student_t(4, 0, 1)T[0, ];
+        A_mu[j] ~ normal(.5, 1)T[0, ];
+          for(n in 1 : numberChoices){
+            v_mu[j, n] ~ normal(2, 1)T[0, ];
+            v_sigma[j, n] ~ student_t(4, 0, 1)T[0, ];
+          }
+     }
+      
+     // パラメータの事前分布の設定
+     for(i in 1 : numberSubjects){		
+        k[i] ~ normal(k_mu, k_sigma)T[0, ];
+        psi[i] ~ normal(psi_mu, psi_sigma)T[0, ];
+          for( j in 1 : numberConditions){
+            A[i, j] ~ normal(A_mu[j], A_sigma[j])T[0, ];
+              for(n in 1 : numberChoices){
+                v[i, j, n] ~ normal(v_mu[j, n],v_sigma[j, n])T[0, ];
+              }
           }
      }
     
-    for(m in 1 : allTrial){
-           subIndex = id[m];
-          rt[m] ~ lba(res[m], k[subIndex], A[subIndex], v[subIndex], s, psi[subIndex]);
+    for(m in 1 : numberAllTrials){
+      subIndex = id[m];
+      condIndex = condition[m];
+      rt[m] ~ lba(response[m], k[subIndex], A[subIndex, condIndex], v[subIndex, condIndex], s, psi[subIndex]);
     }
 }
 
 generated quantities {
-     vector[2] pred[NUM_SUBJ,NUM_COND];
-     vector[allTrial] log_lik;
+     vector[2] pred[numberSubjects, numberConditions];
+     vector[numberAllTrials] log_lik;
      int subIndex;
      int condIndex;
      
-     for(i in 1 : NUM_SUBJ){
-          for(j in 1 : NUM_COND){
-               pred[i, j] = lba_rng(A[i], k[i], v[i], s, psi[i]);
+     for(i in 1 : numberSubjects){
+          for(j in 1 : numberConditions){
+               pred[i, j] = lba_rng(k[i], A[i, j], v[i, j], s, psi[i]);
           }
      }
 
-    for(m in 1 : allTrial){
+    for(m in 1 : numberAllTrials){
           subIndex = id[m];
-          log_lik[m] = lba_lpdf(rt[m] | res[m], k[subIndex], A[subIndex], v[subIndex], s, psi[subIndex]);
+          condIndex = condition[m];
+          log_lik[m] = lba_lpdf(rt[m] | response[m], k[subIndex], A[subIndex, condIndex], v[subIndex, condIndex], s, psi[subIndex]);
     }
      
 }
@@ -850,7 +844,7 @@ hmcThin = 2
 
 fit1 <- sampling(lbaModel1, 
             seed = 1234, 
-            data = stanData,
+            data = stanLongData,
             warmup = hmcWarmup, 
             iter = hmcIter,
             chains = hmcChains,
@@ -858,7 +852,7 @@ fit1 <- sampling(lbaModel1,
 
 fit2 <- sampling(lbaModel2, 
             seed = 1234, 
-            data = stanData,
+            data = stanLongData,
             warmup = hmcWarmup, 
             iter = hmcIter,
             chains = hmcChains,
