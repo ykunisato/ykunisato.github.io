@@ -755,15 +755,15 @@ data{
 
 parameters {
      real < lower = 0 > k[numberSubjects];
-     vector < lower = 0 > A [numberSubjects];
+     real < lower = 0 > A [numberSubjects];
      real < lower = 0 > psi[numberSubjects];
      vector < lower = 0 > [numberChoices] v [numberSubjects, numberConditions];
      real < lower = 0 > k_sigma;
-     vector < lower = 0 > A_sigma;
+     real < lower = 0 > A_sigma;
      real < lower = 0 > psi_sigma;
      vector < lower = 0 > [numberChoices] v_sigma [numberConditions];
      real < lower = 0 > k_mu;
-     vector < lower = 0 > A_mu;
+     real < lower = 0 > A_mu;
      real < lower = 0 > psi_mu;
      vector < lower=0> [numberChoices] v_mu [numberConditions];
 }
@@ -795,7 +795,7 @@ model {
      for(i in 1 : numberSubjects){		
         k[i] ~ normal(k_mu, k_sigma)T[0, ];
         psi[i] ~ normal(psi_mu, psi_sigma)T[0, ];
-        A[i, j] ~ normal(A_mu, A_sigma)T[0, ];
+        A[i] ~ normal(A_mu, A_sigma)T[0, ];
           for( j in 1 : numberConditions){
               for(n in 1 : numberChoices){
                 v[i, j, n] ~ normal(v_mu[j, n],v_sigma[j, n])T[0, ];
@@ -1063,9 +1063,8 @@ mcmc_acf(posterior22, par = c("v[7,1,1]", "v[7,1,2]", "v[7,2,1]", "v[7,2,2]", "v
 mcmc_acf(posterior22, par = c("v[8,1,1]", "v[8,1,2]", "v[8,2,1]", "v[8,2,2]", "v[8,3,1]", "v[8,3,2]"), lags = 10)
 mcmc_acf(posterior22, par = c("v[9,1,1]", "v[9,1,2]", "v[9,2,1]", "v[9,2,2]", "v[9,3,1]", "v[9,3,2]"), lags = 10)
 mcmc_acf(posterior22, par = c("v[10,1,1]", "v[10,1,2]", "v[10,2,1]", "v[10,2,2]", "v[10,3,1]", "v[10,3,2]"), lags = 10)
-mcmc_acf(posterior22, par = c("k_mu", "A_mu[1]","A_mu[2]","A_mu[3]","psi_mu","lp__"), lags = 10)
+mcmc_acf(posterior22, par = c("k_mu", "k_sigma","A_mu","A_sigma","psi_mu","psi_sigma","lp__"), lags = 10)
 mcmc_acf(posterior22, par = c("v_mu[1,1]", "v_mu[1,2]", "v_mu[2,1]", "v_mu[2,2]", "v_mu[3,1]", "v_mu[3,2]"), lags = 10)
-mcmc_acf(posterior22, par = c("k_sigma", "A_sigma[1]","A_sigma[2]","A_sigma[3]","psi_sigma"), lags = 10)
 mcmc_acf(posterior22, par = c("v_sigma[1,1]", "v_sigma[1,2]", "v_sigma[2,1]", "v_sigma[2,2]", "v_sigma[3,1]", "v_mu[3,2]"), lags = 10)
 ```
 
