@@ -1266,11 +1266,4 @@ plot(V32pfit1Eap)
 plot(V32pfit2Eap)
 ```
 
- 
-
-
-```{r, message=FALSE, warning=FALSE}
-mcmc_areas(posterior2, pars = c("k", "A", "tau", "v[1]", "v[2]"), prob = 0.95)
-```
-
 **Enjoy Stan!**
