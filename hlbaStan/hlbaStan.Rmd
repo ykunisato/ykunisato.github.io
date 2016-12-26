@@ -1,7 +1,7 @@
 ---
 title: "RStanによる反応時間の階層ベイズ解析：Linear Ballistic Accumulator modelを用いて"
 author: "専修大学人間科学部心理学科　国里愛彦"
-date: "2016年12月"
+date: "2016年12月26日"
 output:
   html_document:
     md_extensions: -ascii_identifiers
@@ -13,7 +13,7 @@ output:
 
 # はじめに
 
-[Linear Ballistic Accumulator modelを用いた反応時間分析](https://ykunisato.github.io/lbaStan/lbaStan.html)では，１名の参加者の反応時間データをRstanのユーザー定義関数を活用しながら解析する方法について解説を行いました。その際に，試行数は500施行という現実的ではない値を用いていました。今回は，10名が100試行反応するという，心理学実験でありえそうな状況を想定してみます。
+[Linear Ballistic Accumulator modelを用いた反応時間分析](https://ykunisato.github.io/lbaStan/lbaStan.html)では，１名の参加者の反応時間データをRstanのユーザー定義関数を活用しながら解析する方法について解説を行いました。その際に，試行数は500施行という現実的ではない値を用いていました。今回は，10名が100試行反応するという，心理学実験でありえそうな状況を想定してみます。なお，以下でStanコードを載せていますが，HTML上で表記がおかしくなることがあるので，自分の環境で動かしてみたい方は，[ここ](hlbaStan.Rmd)から適宜RmdファイルをDLください。
 
 # 使用パッケージ
 
@@ -29,12 +29,14 @@ library(rstan)
 library(loo)
 library(rtdists)
 library(msm)
-library(dplyr)
 ```
 
 # 10名分のデータの作成
 
-Annis et al. (2016)による [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)のコードを参考にしつつ，10名の参加者が３条件の２選択肢の課題をそれぞれ100試行行ったというデータを作ってみる。まずは，人数分のパラメータを準備します。その際に，vは条件によって異なる（変化するor条件の効果がある）という設定にします。
+Annis et al. (2016)による [Bayesian inference with Stan: A tutorial on adding custom distributions](http://www.ncbi.nlm.nih.gov/pubmed/27287444)のコードを参考にしつつ，10名の参加者が３条件の２選択肢の課題をそれぞれ100試行行ったというデータを作ってみる。
+
+## パタメータの準備
+まずは，人数分のパラメータを準備します。その際に，vは条件によって異なる（変化するor条件の効果がある）という設定にします。
 
 ```{r, message=FALSE, warning=FALSE}
 set.seed(123)
@@ -72,6 +74,9 @@ print(hyperParameters)
 parameters <- data.frame(A,b,t0,v1_c1,v2_c1,v1_c2,v2_c2,v1_c3,v2_c3)
 print(parameters)
 ```
+
+## 反応と反応時間データの作成
+
 上記で設定したパラメータをもとに，rtdistsのrLBA関数を用いて反応時間と反応のデータを作ります。作ったデータは，ロング形式にしました。そして，stanLongDataにStanで使えるようにリスト形式でデータを保存しています。
 
 ```{r, message=FALSE, warning=FALSE}
@@ -120,7 +125,7 @@ dataSub1Con2 <- subset(dataSub1,dataSub1$condition==2)
 dataSub1Con3 <- subset(dataSub1,dataSub1$condition==3)
 ```
 
-各条件の反応
+各条件の選択肢別の反応数
 
 ```{r, message=FALSE, warning=FALSE}
 # 条件１
@@ -177,7 +182,7 @@ subplot(p1, p2)
 # 階層ベイズモデル
 
 　今回は，10名の参加者が３つの条件にたいしてそれぞれ100試行反応するというデータを作成しました。これを階層ベイズを使って推定します。参加者ごとにLinear Ballistic Accumulator Modelのパラメータがありますが，それらが切断正規分布に従うという事前分布をおいて，階層ベイズによる推定を行います。また，同じ参加者が３つの条件を経験しているので，こちらも階層化しますが，条件の効果がパラメータにかかる場合とかからない場合でモデルを組みます。
-　条件の効果は，Aとvにかかることにします。おそらく，無判断時間や閾値自体は条件によって変わらないのではないかという前提のものとで，Aとvに条件の効果がかかるかどうかを検討します（実際は，もう少し複数のモデルを検討しても良いかと思います）。
+　条件の効果は，vのみにかかることにします。おそらく，無判断時間や閾値や開始点の上限は，条件によって変わらないのではないかという前提のものとで，vに条件の効果がかかるかどうかを検討します（実際は，もう少し複数のモデルを検討しても良いかと思います）。
 
 ## 条件による効果なしモデル
 
@@ -261,11 +266,12 @@ S = 1 \hspace{30pt}※Sは定数\\
 RT[n,c, t] \sim LBA(k_{n},A_{n},\tau_{n},v[1]_{n},s) [選択肢１の時]\\
 RT[n,c, t] \sim LBA(k_{n},A_{n},\tau_{n},v[2]_{n},s) [選択肢2の時]\\
 $$
+
 ### Stanコード
 
 基本的には，[「RStanによる反応時間の解析：Linear Ballistic Accumulator modelを用いて」](https://ykunisato.github.io/lbaStan/lbaStan.html)で解説したユーザー定義関数を用います。
 
-```{stan output.var="lbaModel1", include=FALSE}
+```{stan, output.var="lbaModel1"}
 functions{
      
      real lba_pdf(real t, real b, real A, real v, real s){
@@ -499,7 +505,7 @@ generated quantities {
 
 ## 条件によるAとvへの効果ありモデル
 
-次は，条件によるA(開始点の上限)とv（ドリフト率の平均）への効果を仮定したモデルになります。おそらく条件によって異なるという前提がある場合は，こちらのほうが自然に思います。
+次は，条件によるv（ドリフト率の平均）への効果を仮定したモデルになります。おそらく条件によって異なるという前提がある場合は，こちらのほうが自然に思います。
 
 ### グラフィカルモデル
 
@@ -588,7 +594,7 @@ $$
 
 ### Stanコード
 
-```{stan output.var="lbaModel2", include=FALSE}
+```{stan, output.var="lbaModel2"}
 functions{
      
      real lba_pdf(real t, real b, real A, real v, real s){
@@ -1264,5 +1270,7 @@ V32pfit2Eap <- ggplot(parameterV32, aes(x=parameters.v2_c3, y=fit2v32Eap))+geom_
 plot(V32pfit1Eap)
 plot(V32pfit2Eap)
 ```
+
+おおよそ，パラメータリカバリができていました。上記では，vのみが条件の効果を受けるという設定でしたが，適宜モデルを変えつつデータにあったモデルを設定できると良いかと思います。また，事後予測チェックはなかなか煩雑になるので省略しましたが，適宜行う必要があります。
 
 **Enjoy Stan!**
