@@ -1229,8 +1229,8 @@ fit2v22Map <- apply(extractFit2$v[,,2,2],2,mapEstimate)
 parameterV22 <-data.frame(parameters$v2_c2,fit1v22Eap,fit1v22Map,fit2v22Eap,fit2v22Map)
 print(parameterV22)
 
-V22pfit1Eap <- ggplot(parameterV22, aes(x=parameters.v2_c2, y=fit1v22Eap))+geom_point()+ xlab("Estimated parameter in With Condition Effect Model")+ylab("Original value of v in condition 1 & choice2")
-V22pfit2Eap <- ggplot(parameterV22, aes(x=parameters.v2_c2, y=fit2v22Eap))+geom_point()+ xlab("Estimated parameter in Without Condition Effect Model")+ylab("Original value of v in condition 1 & choice2")
+V22pfit1Eap <- ggplot(parameterV22, aes(x=parameters.v2_c2, y=fit1v22Eap))+geom_point()+ xlab("Estimated parameter in Without Condition Effect Model")+ylab("Original value of v in condition 1 & choice2")
+V22pfit2Eap <- ggplot(parameterV22, aes(x=parameters.v2_c2, y=fit2v22Eap))+geom_point()+ xlab("Estimated parameter in With Condition Effect Model")+ylab("Original value of v in condition 1 & choice2")
 plot(V22pfit1Eap)
 plot(V22pfit2Eap)
 ```
@@ -1265,8 +1265,8 @@ fit2v32Map <- apply(extractFit2$v[,,3,2],2,mapEstimate)
 parameterV32 <-data.frame(parameters$v2_c3,fit1v32Eap,fit1v32Map,fit2v32Eap,fit2v32Map)
 print(parameterV32)
 
-V32pfit1Eap <- ggplot(parameterV32, aes(x=parameters.v2_c3, y=fit1v32Eap))+geom_point()+ xlab("Estimated parameter in With Condition Effect Model")+ylab("Original value of v in condition 1 & choice2")
-V32pfit2Eap <- ggplot(parameterV32, aes(x=parameters.v2_c3, y=fit2v32Eap))+geom_point()+ xlab("Estimated parameter in Without Condition Effect Model")+ylab("Original value of v in condition 1 & choice2")
+V32pfit1Eap <- ggplot(parameterV32, aes(x=parameters.v2_c3, y=fit1v32Eap))+geom_point()+ xlab("Estimated parameter in Without Condition Effect Model")+ylab("Original value of v in condition 1 & choice2")
+V32pfit2Eap <- ggplot(parameterV32, aes(x=parameters.v2_c3, y=fit2v32Eap))+geom_point()+ xlab("Estimated parameter in With Condition Effect Model")+ylab("Original value of v in condition 1 & choice2")
 plot(V32pfit1Eap)
 plot(V32pfit2Eap)
 ```
