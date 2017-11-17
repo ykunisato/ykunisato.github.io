@@ -518,7 +518,7 @@ grViz("
       node [shape = circle,style = filled,fillcolor = white,color = black,label = 'k@_{n}'] k
       node [label = '&mu;@_{k}'] mk
       node [label = '&sigma;@_{k}'] sk
-      node [label = 'A@_{n,c}'] A
+      node [label = 'A@_{n}'] A
       node [label = '&mu;@_{A}'] mA
       node [label = '&sigma;@_{A}'] sA
       node [label = '&tau;@_{n}'] t
