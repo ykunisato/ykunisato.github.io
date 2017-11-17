@@ -503,7 +503,7 @@ generated quantities {
 }
 ```
 
-## 条件によるAとvへの効果ありモデル
+## 条件によるvへの効果ありモデル
 
 次は，条件によるv（ドリフト率の平均）への効果を仮定したモデルになります。おそらく条件によって異なるという前提がある場合は，こちらのほうが自然に思います。
 
@@ -547,11 +547,11 @@ grViz("
                       lba -> rt
                 }
               edge [color = black]
-                A -> lba
                 v1 -> lba
                 v2 -> lba
             }
           edge [color = black]
+            A -> lba
             k -> lba
             t -> lba
         }
@@ -926,13 +926,13 @@ plot(ph2)
 ```
 
 ### $\hat{R}$の確認
-bayesplotで確認をしても良いですが，ちょっとパラメータ多いすぎるので，一括で検討します。$\hat{R}$が1.10以下ならTRUE，1.10以上のものがあればFALSEになります。
+bayesplotで確認をしても良いですが，ちょっとパラメータ多すぎるので，一括で検討します。$\hat{R}$が1.10以下ならTRUE，1.10以上のものがあればFALSEになります。
 ```{r, message=FALSE, warning=FALSE}
 all(stan_rhat(fit1)$data <=1.10,na.rm=T)
 ```
     
 ### 有効サンプルサイズ
-bayesplotで確認をしても良いですが，ちょっとパラメータ多いすぎるので，一括で検討します。有効サンプルサイズが0.1以上ならTRUE，0.1以下のものがあればFALSEになります。
+bayesplotで確認をしても良いですが，ちょっとパラメータ多すぎるので，一括で検討します。有効サンプルサイズが0.1以上ならTRUE，0.1以下のものがあればFALSEになります。
 ```{r, message=FALSE, warning=FALSE}
 all(stan_ess(fit1)$data >= 0.1,na.rm=T)
 ```
@@ -1039,13 +1039,13 @@ plot(ph3)
 ```
 
 ### $\hat{R}$の確認
-bayesplotで確認をしても良いですが，ちょっとパラメータ多いすぎるので，一括で検討します。$\hat{R}$が1.10以下ならTRUE，1.10以上のものがあればFALSEになります。
+bayesplotで確認をしても良いですが，ちょっとパラメータ多すぎるので，一括で検討します。$\hat{R}$が1.10以下ならTRUE，1.10以上のものがあればFALSEになります。
 ```{r, message=FALSE, warning=FALSE}
 all(stan_rhat(fit2)$data <=1.10,na.rm=T)
 ```
     
 ### 有効サンプルサイズ
-bayesplotで確認をしても良いですが，ちょっとパラメータ多いすぎるので，一括で検討します。有効サンプルサイズが0.1以上ならTRUE，0.1以下のものがあればFALSEになります。
+bayesplotで確認をしても良いですが，ちょっとパラメータ多すぎるので，一括で検討します。有効サンプルサイズが0.1以上ならTRUE，0.1以下のものがあればFALSEになります。
 ```{r, message=FALSE, warning=FALSE}
 all(stan_ess(fit2)$data >= 0.1,na.rm=T)
 ```
